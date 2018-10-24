@@ -13,5 +13,5 @@ Suggested by Gabriele
 
 Suggested by Vito. Seems more userfriendly.
 [github](https://github.com/eternnoir/pyTelegramBotAPI)
-`pip3 install telebot`
+`pip3 install pyTelegramBotAPI`
 
