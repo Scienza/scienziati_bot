@@ -15,3 +15,5 @@ Suggested by Vito. Seems more userfriendly.
 [github](https://github.com/eternnoir/pyTelegramBotAPI)
 `pip3 install pyTelegramBotAPI`
 
+The first example: `telebot_test.py` does a simple echo of messages
+
