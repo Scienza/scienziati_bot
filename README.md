@@ -21,6 +21,8 @@ The first example: `telebot_test.py` does a simple echo of messages
 For a feature todo list:
 [cf. bot team chat](https://github.com/orgs/Scienza/teams/bot)
 
+I started implementing a little dialog using a global variable. This is not good enough if two or more users want to use the bot at the same time, find another solution but here's a canvas.
+
 More stuff to do:
 - give a /start, /help more informative message (Italian)
 - estract userID and other features to be saved from the message queue into a python structure
