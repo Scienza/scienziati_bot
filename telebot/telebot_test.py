@@ -80,9 +80,14 @@ def second_registration(message):
 		# if message.from_user.id is the same as before:
 		# Save this in database as subscriptions
 		database[str(message.from_user.id)]['liste'] = message.text
-		print(database)
 		bot.reply_to(message, "Grazie " + message.from_user.first_name)
 		handler = 0
+
+@bot.message_handler(commands=['database'])
+def print_database(message):
+	global database
+	bot.reply_to(message, str(database))
+
 
 
 @bot.message_handler(func=lambda m: True if handler == 0 else False)
