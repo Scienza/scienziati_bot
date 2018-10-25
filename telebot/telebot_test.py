@@ -14,6 +14,7 @@ handler = 0
 # description VARCHAR(300));"""
 # database.execute(sql_command)
 database = {}
+liste = ['fisica', 'matematica', 'informatica']
 
 intro_mex = "Questo e' il bot del gruppo @scienza, \n\
 /iscrivi iscriviti al database di utenti e a liste di interessi \n\
@@ -33,10 +34,11 @@ def start_user_registration(message):
 		bot.reply_to(message, "creazione nuovo record utente...")
 
 		# Save this in database
-		database = {str(message.from_user.id) : 
+		database = {message.from_user.id : 
 			{'username' : str(message.from_user.username),
 			'first_name': str(message.from_user.first_name),
 			'last_name' : str(message.from_user.last_name),
+			'privs' : 0,
 			'description': '',
 			'liste': ''
 			} 
@@ -59,6 +61,7 @@ def start_user_registration(message):
 def first_registration(message):
 	global handler
 	global database
+	global liste
 	if not message.from_user.is_bot:
 		# if message.from_user.id is the same as before save this in database as description
 		database[str(message.from_user.id)]['description'] = message.text
@@ -69,6 +72,7 @@ def first_registration(message):
 		# database.execute(sql_command)
 
 		bot.reply_to(message,"A quali liste vuoi iscriverti?")
+		bot.reply_to(message,"seleziona fra: " + str(liste))
 		# scrivere lista di liste
 		handler = 2
 
@@ -76,6 +80,7 @@ def first_registration(message):
 def second_registration(message):
 	global handler
 	global database
+	global liste
 	if not message.from_user.is_bot:
 		# if message.from_user.id is the same as before:
 		# Save this in database as subscriptions
@@ -87,7 +92,6 @@ def second_registration(message):
 def print_database(message):
 	global database
 	bot.reply_to(message, str(database))
-
 
 
 @bot.message_handler(func=lambda m: True if handler == 0 else False)
