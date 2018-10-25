@@ -34,7 +34,7 @@ def start_user_registration(message):
 		bot.reply_to(message, "creazione nuovo record utente...")
 
 		# Save this in database
-		database = {message.from_user.id : 
+		database.update({message.from_user.id : 
 			{'username' : str(message.from_user.username),
 			'first_name': str(message.from_user.first_name),
 			'last_name' : str(message.from_user.last_name),
@@ -42,7 +42,7 @@ def start_user_registration(message):
 			'description': '',
 			'liste': ''
 			} 
-		}
+		})
 
 		# sql_command = ("INSERT INTO user (id_number, username, first_name, last_name)\
     	# VALUES ("
@@ -64,7 +64,7 @@ def first_registration(message):
 	global liste
 	if not message.from_user.is_bot:
 		# if message.from_user.id is the same as before save this in database as description
-		database[str(message.from_user.id)]['description'] = message.text
+		database[message.from_user.id]['description'] = message.text
 
 		# sql_command = ("UPDATE users SET description =  "
 		# + message.text 
@@ -84,7 +84,7 @@ def second_registration(message):
 	if not message.from_user.is_bot:
 		# if message.from_user.id is the same as before:
 		# Save this in database as subscriptions
-		database[str(message.from_user.id)]['liste'] = message.text
+		database[message.from_user.id]['liste'] = message.text
 		bot.reply_to(message, "Grazie " + message.from_user.first_name)
 		handler = 0
 
@@ -93,11 +93,11 @@ def print_database(message):
 	global database
 	bot.reply_to(message, str(database))
 
-
 @bot.message_handler(func=lambda m: True if handler == 0 else False)
 def reply_all(message):
 	if not message.from_user.is_bot:
 		bot.reply_to(message, "Ciao " + message.from_user.first_name + 
 		                      ",\nusa /help o /start per una lista dei comandi")
+
 
 bot.polling()
