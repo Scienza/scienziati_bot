@@ -1,5 +1,5 @@
 import telebot
-import sqlite3
+# import sqlite3
 
 bot = telebot.TeleBot("676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA")
 
@@ -22,10 +22,19 @@ intro_mex = "Questo e' il bot del gruppo @scienza, \n\
 /liste consulta le attuali liste di interessi \n\
 /nuovalista crea nuove liste"
 
+# privs =-1 -> utente non registrato
+#       = 0 -> utente normale
+#       = 1 -> utente abituale
+#       = 2 -> utente assiduo
+#       = 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)
+#       = 4 -> amministratore
+#       = 5 -> fondatore
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
 	bot.reply_to(message, intro_mex)
 
+### Chat di Iscrizione ###
 @bot.message_handler(commands=['iscrivi'])
 def start_user_registration(message):
 	global handler
@@ -88,10 +97,40 @@ def second_registration(message):
 		bot.reply_to(message, "Grazie " + message.from_user.first_name)
 		handler = 0
 
+### Fine Chat di iscrizione ###
+
+@bot.message_handler(commands=['liste'])
+def print_liste(message):
+	global liste
+	bot.reply_to(message, str(liste))
+
+@bot.message_handler(commands=['nuovalista'])
+def change_liste(message):
+	global liste
+
+	# set default for user not in database as privs = -1
+	userprivs = database.get(message.from_user.id,{'privs' : -1})['privs']
+	if userprivs > 2:
+		nuovalista = message.text.split("nuovalista ",1)[-1]
+		if "/nuovalista" in nuovalista:
+			bot.reply_to(message, "specifica una lista dopo il comando /nuovalista.\nAd esempio /nuovalista fisica")
+		elif nuovalista in liste:
+			bot.reply_to(message, "lista gia' esistente")
+		else:
+			liste.append(nuovalista)
+			bot.reply_to(message, "lista aggiunta\n"+str(liste))
+
+	# bot.reply_to(message, )
+
 @bot.message_handler(commands=['database'])
 def print_database(message):
 	global database
-	bot.reply_to(message, str(database))
+	userprivs = database.get(message.from_user.id,{'privs' : -1})['privs']
+	if userprivs > 2:
+		bot.reply_to(message, str(database))
+	else:
+		bot.reply_to(message, str(database.get(message.from_user.id,None)))
+
 
 @bot.message_handler(func=lambda m: True if handler == 0 else False)
 def reply_all(message):
