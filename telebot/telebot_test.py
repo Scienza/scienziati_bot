@@ -16,23 +16,28 @@ handler = 0
 database = {}
 liste = ['fisica', 'matematica', 'informatica']
 
-intro_mex = "Questo e' il bot del gruppo @scienza, \n\
-/iscrivi iscriviti al database di utenti e a liste di interessi \n\
-/modifica visiona e modifica la propria descrizione \n\
-/liste consulta le attuali liste di interessi \n\
-/nuovalista crea nuove liste"
+intro_mex = """Questo e' il bot del gruppo @scienza, \n
+/iscrivi iscriviti al database di utenti e a liste di interessi \n
+/modifica visiona e modifica la propria descrizione \n
+/liste consulta le attuali liste di interessi \n
+/nuovalista crea nuove liste\n
+/privs elenca i privilegi utente"""
 
-# privs =-1 -> utente non registrato
-#       = 0 -> utente normale
-#       = 1 -> utente abituale
-#       = 2 -> utente assiduo
-#       = 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)
-#       = 4 -> amministratore
-#       = 5 -> fondatore
+privs_mex = """privs =-1 -> utente non registrato\n
+       				 = 0 -> utente normale\n
+       				 = 1 -> utente abituale\n
+       				 = 2 -> utente assiduo\n
+       				 = 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)\n
+      				 = 4 -> amministratore\n
+		       		 = 5 -> fondatore"""
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
 	bot.reply_to(message, intro_mex)
+
+@bot.message_handler(commands=['privs'])
+def send_privs(message):
+	bot.reply_to(message, privs_mex)
 
 ### Chat di Iscrizione ###
 @bot.message_handler(commands=['iscrivi'])
