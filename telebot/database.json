@@ -8,3 +8,17 @@
         "liste": []
     }
 }
+{
+    "44917659": {
+        "username": "AndreaIdini",
+        "first_name": "Andrea",
+        "last_name": "None",
+        "privs": 7,
+        "description": "The Boss",
+        "liste": [
+            "fisica",
+            "matematica",
+            "informatica"
+        ]
+    }
+}

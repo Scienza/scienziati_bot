@@ -18,8 +18,6 @@ with open('database.json', 'r') as f:
 with open('liste.json', 'r') as f:  
 	liste = json.load(f)
 
-
-print(database)
 intro_mex = """Questo e' il bot del gruppo @scienza,
 /iscrivi iscriviti al database di utenti e a liste di interessi
 /modifica visiona e modifica la propria descrizione
@@ -48,26 +46,28 @@ def send_privs(message):
 def start_user_registration(message):
 	global database
 	if not message.from_user.is_bot:
-		bot.reply_to(message, "creazione nuovo record utente...")
 
-		# Save this in database
-		database.update({message.from_user.id : 
-			{'username' : str(message.from_user.username),
-			'first_name': str(message.from_user.first_name),
-			'last_name' : str(message.from_user.last_name),
-			'privs' : 0,
-			'description': '',
-			'liste': ''
-			} 
-		})
+		if database.get(str(message.from_user.id),None) is None:
+			bot.reply_to(message, "creazione nuovo record utente...")
 
-		# sql_command = ("INSERT INTO user (id_number, username, first_name, last_name)\
-    	# VALUES ("
-		# + str(message.from_user.id) + ", "
-		# + str(message.from_user.username) + ", " 
-		# + str(message.from_user.first_name) + ", "
-		# + str(message.from_user.last_name) + ");")
-		# database.execute(sql_command)
+			# Save this in database
+			database.update({str(message.from_user.id) : 
+				{'username' : str(message.from_user.username),
+				'first_name': str(message.from_user.first_name),
+				'last_name' : str(message.from_user.last_name),
+				'privs' : 0,
+				'description': '',
+				'liste': ''
+				} 
+			})
+
+			# sql_command = ("INSERT INTO user (id_number, username, first_name, last_name)\
+			# VALUES ("
+			# + str(message.from_user.id) + ", "
+			# + str(message.from_user.username) + ", " 
+			# + str(message.from_user.first_name) + ", "
+			# + str(message.from_user.last_name) + ");")
+			# database.execute(sql_command)
 
 		msg = bot.reply_to(message, "dacci una breve presentazione di te (studio/lavoro, luogo ...)")
 
@@ -79,7 +79,7 @@ def first_registration(message):
 	global liste
 	if not message.from_user.is_bot:
 		# if message.from_user.id is the same as before save this in database as description
-		database[message.from_user.id]['description'] = message.text
+		database[str(message.from_user.id)]['description'] = message.text
 
 		# sql_command = ("UPDATE users SET description =  "
 		# + message.text 
@@ -99,15 +99,15 @@ def second_registration(message):
 		# Save this in database as subscriptions
 		msg = message.text.replace(',','')
 		subscription = msg.split()
-		database[message.from_user.id]['liste'] = []
+		database[str(message.from_user.id)]['liste'] = []
 		for lista in subscription:
 			if lista in liste:
-				database[message.from_user.id]['liste'].append(lista)
+				database[str(message.from_user.id)]['liste'].append(lista)
 			else: 
 				bot.reply_to(message, "Lista "+ lista + " non esistente")
 		
 		bot.reply_to(message, "Grazie " + message.from_user.first_name + "\n\
-		ora sei iscritto a:\n " + str(database[message.from_user.id]['liste']))
+		ora sei iscritto a:\n " + str(database[str(message.from_user.id)]['liste']))
 		with open('database.json', 'a') as f:  
 			json.dump(database, f, indent=4)
 
@@ -123,7 +123,7 @@ def change_liste(message):
 	global liste
 
 	# set default for user not in database as privs = -1
-	userprivs = database.get(message.from_user.id,{'privs' : -1})['privs']
+	userprivs = database.get(str(message.from_user.id),{'privs' : -1})['privs']
 	if userprivs > 2:
 		nuovalista = message.text.split("nuovalista ",1)[-1]
 		if "/nuovalista" in nuovalista:
