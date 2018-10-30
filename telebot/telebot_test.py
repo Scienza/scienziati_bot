@@ -3,7 +3,6 @@ import telebot
 
 bot = telebot.TeleBot("676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA")
 
-handler = 0
 # database = sqlite3.connect("users.db", check_same_thread=False)
 # sql_command = """
 # CREATE TABLE user ( 
@@ -42,7 +41,6 @@ def send_privs(message):
 ### Chat di Iscrizione ###
 @bot.message_handler(commands=['iscrivi'])
 def start_user_registration(message):
-	global handler
 	global database
 	if not message.from_user.is_bot:
 		bot.reply_to(message, "creazione nuovo record utente...")
@@ -66,14 +64,12 @@ def start_user_registration(message):
 		# + str(message.from_user.last_name) + ");")
 		# database.execute(sql_command)
 
+		msg = bot.reply_to(message, "dacci una breve presentazione di te (studio/lavoro, luogo ...)")
+
 		# this is to define step-by-step subscription
-		handler = 1
+		bot.register_next_step_handler(msg, first_registration)
 
-		bot.reply_to(message, "dacci una breve presentazione di te (studio/lavoro, luogo ...)")
-
-@bot.message_handler(func=lambda m: True if handler == 1 else False)
 def first_registration(message):
-	global handler
 	global database
 	global liste
 	if not message.from_user.is_bot:
@@ -86,13 +82,11 @@ def first_registration(message):
 		# database.execute(sql_command)
 
 		bot.reply_to(message,"A quali liste vuoi iscriverti?")
-		bot.reply_to(message,"seleziona fra: " + str(liste))
+		msg = bot.reply_to(message,"seleziona fra: " + str(liste))
 		# scrivere lista di liste
-		handler = 2
+		bot.register_next_step_handler(msg, second_registration)
 
-@bot.message_handler(func=lambda m: True if handler == 2 else False)
 def second_registration(message):
-	global handler
 	global database
 	global liste
 	if not message.from_user.is_bot:
@@ -100,7 +94,6 @@ def second_registration(message):
 		# Save this in database as subscriptions
 		database[message.from_user.id]['liste'] = message.text
 		bot.reply_to(message, "Grazie " + message.from_user.first_name)
-		handler = 0
 
 ### Fine Chat di iscrizione ###
 
