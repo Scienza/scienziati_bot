@@ -1,4 +1,5 @@
 import telebot
+import json
 # import sqlite3
 
 bot = telebot.TeleBot("676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA")
@@ -12,9 +13,13 @@ bot = telebot.TeleBot("676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA")
 # last_name VARCHAR(20),
 # description VARCHAR(300));"""
 # database.execute(sql_command)
-database = {}
-liste = ['fisica', 'matematica', 'informatica']
+with open('database.json', 'r') as f:  
+	database = json.load(f)
+with open('liste.json', 'r') as f:  
+	liste = json.load(f)
 
+
+print(database)
 intro_mex = """Questo e' il bot del gruppo @scienza,
 /iscrivi iscriviti al database di utenti e a liste di interessi
 /modifica visiona e modifica la propria descrizione
@@ -50,7 +55,7 @@ def start_user_registration(message):
 			{'username' : str(message.from_user.username),
 			'first_name': str(message.from_user.first_name),
 			'last_name' : str(message.from_user.last_name),
-			'privs' : 5,
+			'privs' : 0,
 			'description': '',
 			'liste': ''
 			} 
@@ -102,8 +107,9 @@ def second_registration(message):
 				bot.reply_to(message, "Lista "+ lista + " non esistente")
 		
 		bot.reply_to(message, "Grazie " + message.from_user.first_name + "\n\
-		                      ora sei iscritto a:\n " + str(database[message.from_user.id]['liste']))
-
+		ora sei iscritto a:\n " + str(database[message.from_user.id]['liste']))
+		with open('database.json', 'a') as f:  
+			json.dump(database, f, indent=4)
 
 ### Fine Chat di iscrizione ###
 
@@ -128,17 +134,21 @@ def change_liste(message):
 			liste.append(nuovalista)
 			bot.reply_to(message, "lista aggiunta\n"+str(liste))
 
+	with open('liste.json', 'w') as f:  
+		json.dump(liste, f, indent=4)
+
+
 	# bot.reply_to(message, )
 
 @bot.message_handler(commands=['database'])
 def print_database(message):
 	global database
-	userprivs = database.get(message.from_user.id,{'privs' : -1})['privs']
+	userprivs = database.get(str(message.from_user.id),{'privs' : -1})['privs']
+
 	if userprivs > 2:
 		bot.reply_to(message, str(database))
 	else:
 		bot.reply_to(message, str(database.get(message.from_user.id,None)))
-
 
 @bot.message_handler(func=lambda m: True)
 def reply_all(message):
