@@ -15,19 +15,19 @@ bot = telebot.TeleBot("676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA")
 database = {}
 liste = ['fisica', 'matematica', 'informatica']
 
-intro_mex = """Questo e' il bot del gruppo @scienza, \n
-/iscrivi iscriviti al database di utenti e a liste di interessi \n
-/modifica visiona e modifica la propria descrizione \n
-/liste consulta le attuali liste di interessi \n
-/nuovalista crea nuove liste\n
+intro_mex = """Questo e' il bot del gruppo @scienza,
+/iscrivi iscriviti al database di utenti e a liste di interessi
+/modifica visiona e modifica la propria descrizione
+/liste consulta le attuali liste di interessi
+/nuovalista crea nuove liste
 /privs elenca i privilegi utente"""
 
-privs_mex = """privs =-1 -> utente non registrato\n
-       				 = 0 -> utente normale\n
-       				 = 1 -> utente abituale\n
-       				 = 2 -> utente assiduo\n
-       				 = 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)\n
-      				 = 4 -> amministratore\n
+privs_mex = """privs =-1 -> utente non registrato
+       				 = 0 -> utente normale
+       				 = 1 -> utente abituale
+       				 = 2 -> utente assiduo
+       				 = 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)
+      				 = 4 -> amministratore
 		       		 = 5 -> fondatore"""
 
 @bot.message_handler(commands=['start', 'help'])
@@ -50,7 +50,7 @@ def start_user_registration(message):
 			{'username' : str(message.from_user.username),
 			'first_name': str(message.from_user.first_name),
 			'last_name' : str(message.from_user.last_name),
-			'privs' : 0,
+			'privs' : 5,
 			'description': '',
 			'liste': ''
 			} 
@@ -92,8 +92,18 @@ def second_registration(message):
 	if not message.from_user.is_bot:
 		# if message.from_user.id is the same as before:
 		# Save this in database as subscriptions
-		database[message.from_user.id]['liste'] = message.text
-		bot.reply_to(message, "Grazie " + message.from_user.first_name)
+		msg = message.text.replace(',','')
+		subscription = msg.split()
+		database[message.from_user.id]['liste'] = []
+		for lista in subscription:
+			if lista in liste:
+				database[message.from_user.id]['liste'].append(lista)
+			else: 
+				bot.reply_to(message, "Lista "+ lista + " non esistente")
+		
+		bot.reply_to(message, "Grazie " + message.from_user.first_name + "\n\
+		                      ora sei iscritto a:\n " + str(database[message.from_user.id]['liste']))
+
 
 ### Fine Chat di iscrizione ###
 
@@ -130,7 +140,7 @@ def print_database(message):
 		bot.reply_to(message, str(database.get(message.from_user.id,None)))
 
 
-@bot.message_handler(func=lambda m: True if handler == 0 else False)
+@bot.message_handler(func=lambda m: True)
 def reply_all(message):
 	if not message.from_user.is_bot:
 		bot.reply_to(message, "Ciao " + message.from_user.first_name + 
