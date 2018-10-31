@@ -462,7 +462,7 @@ def setBio(message):
 				#Tries to force the user to reply to the message
 				#markup = telebot.types.ForceReply(selective=False)
 				markup = telebot.types.InlineKeyboardMarkup()
-				markup.row_width = 2
+				markup.row_width = 1
 				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aBio"))
 				msg = bot.reply_to(message, "Per impostare una biografia, scrivila in chat privata o rispondendomi", reply_markup=markup)
 				dbConnection.commit()
@@ -589,13 +589,13 @@ def genericMessageHandler(message):
 			if message.chat.type == "private":
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
-				msg = bot.reply_to(message, "Biografia impostata con successo!")
+				msg = bot.reply_to(message, "✅ Biografia impostata con successo!")
 				#Tries to force the user to reply to the message
 			#TODO: Not sure about the order - needs to be checked
 			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message != None and message.reply_to_message.from_user.id == botInfo.id:
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
-				msg = bot.reply_to(message, "Biografia impostata con successo!")
+				msg = bot.reply_to(message, "✅ Biografia impostata con successo!")
 		#Check for list
 		elif user["Status"] == UserStatus.WAITING_FOR_LIST:
 			#User is creating a new list
