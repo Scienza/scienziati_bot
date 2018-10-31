@@ -9,7 +9,7 @@ class Settings:
 	TelegramApiKey = "676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA"
 	SupremeAdmins = []
 	ITGroup = 0
-	OTGroup = 1
+	OTGroup = -1001176680738
 
 
 ###
@@ -229,26 +229,31 @@ def GetUserStatusValue(userID):
 #IncrITGroupMessagesCount increments the number of messages in the IT group
 def IncrITGroupMessagesCount(userID):
 	dbC = dbConnection.cursor()
-	res = dbC.execute('UPDATE Users SET ITMessageNumber = ITMessageNumber + 1 WHERE ID = ?;', (userID,) )
+	res = dbC.execute('UPDATE Users SET ITMessageNumber = ITMessageNumber + 1 WHERE ID = ?', (userID,) )
 	if res:
+		CommitDb()
 		return True
 	return False
 
 #IncrOTGroupMessagesCount increments the number of messages in the OT group
 def IncrOTGroupMessagesCount(userID):
 	dbC = dbConnection.cursor()
-	res = dbC.execute('UPDATE Users SET OTMessageNumber = OTMessageNumber + 1 WHERE ID = ?;', (userID,) )
+	res = dbC.execute('UPDATE Users SET OTMessageNumber = OTMessageNumber + 1 WHERE ID = ?', (userID,) )
 	if res:
+		CommitDb()
 		return True
 	return False
 
 def UpdateLastSeen(userID, date):
 	dbC = dbConnection.cursor()
-	res = dbC.execute('UPDATE Users SET LastSeen=? WHERE ID = ?;', (date, userID,) )
+	res = dbC.execute('UPDATE Users SET LastSeen=? WHERE ID = ?', (date, userID,) )
 	if res:
+		CommitDb()
 		return True
 	return False
 
+def CommitDb():
+	dbConnection.commit()
 
 ###
 # Bot functions
@@ -269,7 +274,6 @@ def send_privs(message):
 ### Messaggio di Iscrizione 
 @bot.message_handler(commands=['iscrivi'])
 def start_user_registration(message):
-	bot.reply_to(message, "Test")
 	if not message.from_user.is_bot and message.text != "" :
 		# Tries to see 
 		dbC = dbConnection.cursor()
@@ -304,20 +308,16 @@ def start_user_registration(message):
 def setBio(message):
 	if not message.from_user.is_bot and message.text != "" :
 		# Gets info about the user
-		dbC = dbConnection.cursor()
-		dbC.execute('SELECT * FROM Users WHERE ID=?', (message.from_user.id,))
-		rows = dbC.fetchall()
-
+		user = GetUser(message.from_user.id)
 		#Check if the user exists
-		if len(rows) < 1:
+		if user == False:
 			#the user does not exist
 			msg = bot.reply_to(message, "Non sei ancora registrato. Puoi registrarti attraverso il comando /iscrivi ")
-
 		#Check its status
-		if len(rows) == 1:
+		else:
 			#There's only one user, as it's supposed to be
 			#Check if the user needs to set a biography
-			if UserStatus.CanEnterBio(rows[0]["Status"]):
+			if UserStatus.CanEnterBio(user["Status"]):
 				#Asks for the bio
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
@@ -330,37 +330,29 @@ def setBio(message):
 				#Nothing to do here
 				msg = bot.reply_to(message, "You are already ok")
 
-		else:
-			#Something's wrongs, there shouldn't be more than one 1 user with the same ID
-			#The "error code" is a random string, univoque in the code, to see where the code faulted
-			msg = bot.reply_to(message, "Errore generico, conttattare un admin.\nCodice: #E643")
-
 
 
 @bot.message_handler(func=lambda m: True)
 def genericMessageHandler(message):
 	#get info about the user
-	dbC = dbConnection.cursor()
-	dbC.execute('SELECT * FROM Users WHERE ID=?', (message.from_user.id,))
-	rows = dbC.fetchall()
 
-	#Check if the user is registred
-	if len(rows) > 0:
+	user = GetUser(message.from_user.id)
+	if user != False:
 		#The user is registred in DB
 
 		#Check for biography
-		if rows[0]["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
+		if user["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
 			#User is setting the Bio
 			if message.chat.type == "private":
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
 				#Tries to force the user to reply to the message
 				
 			#TODO: Not sure about the order - needs to be checked
-			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.chat.reply_to_message == botInfo.ID:
+			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message.from_user.id == botInfo.id:
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
 		else:
 			#Normal message, increment message counter
@@ -373,10 +365,10 @@ def genericMessageHandler(message):
 			time.localtime(message.date)))
 
 			if not message.from_user.is_bot and message.text != "" :
-				if message.from_chat.id == Settings.ITGroup:
+				if message.chat.id == Settings.ITGroup:
 					#Increment IT group messages cunt
 					IncrITGroupMessagesCount(message.from_user.id)
-				elif message.from_chat.id == Settings.OTGroup:
+				elif message.chat.id == Settings.OTGroup:
 					#Increment OT group messages cunt
 					IncrOTGroupMessagesCount(message.from_user.id)
 		dbConnection.commit()
@@ -471,13 +463,13 @@ def print_database(message):
 	else:
 		bot.reply_to(message, str(database.get(message.from_user.id,None)))
 """
-
+"""
 @bot.message_handler(func=lambda m: True)
 def reply_all(message):
 	if not message.from_user.is_bot:
 		bot.reply_to(message, "Ciao " + message.from_user.first_name + 
 		                      ",\nusa /help o /start per una lista dei comandi")
-
+"""
 
 ###
 #Starts the bot
