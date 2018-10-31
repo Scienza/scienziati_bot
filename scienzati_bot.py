@@ -355,7 +355,7 @@ def GetListName(listID):
 	dbC.execute('SELECT `Name` FROM Lists WHERE `ID`=?;', (listID,))
 	res = dbC.fetchone()
 	if res != None:
-		return res
+		return res[0]
 	return False
 	
 def ListExists(listName):
