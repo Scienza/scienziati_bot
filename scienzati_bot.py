@@ -567,16 +567,17 @@ def unsubscribeUserListHandler(message):
 			#Print the lists as inline buttons
 			if lists == False:
 				msg="Al momento non sei iscritto a nessuna lista.\nPuoi iscriverti ad una lista attraverso il comando /registrati."
-			for ulist in lists:
-				#																			sub-{id} => unsubscribe to list {id}
-				markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
-			#If there are still lists, print the page delimiter
-			#if len(lists) > Settings.subscriptionRows-1:
-			if SubscribedLists(message.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
-				#																																	  osub-{n} => offest subscription, needed for pagination, 
-				#Teels the offset to set to correctly display the pages
-				markup.row(telebot.types.InlineKeyboardButton(" ", callback_data="ignore"), telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(Settings.subscriptionRows-1)))
-				#⬅️ ➡️ 
+			else:
+				for ulist in lists:
+					#																			sub-{id} => unsubscribe to list {id}
+					markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+				#If there are still lists, print the page delimiter
+				#if len(lists) > Settings.subscriptionRows-1:
+				if SubscribedLists(message.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
+					#																																	  osub-{n} => offest subscription, needed for pagination, 
+					#Teels the offset to set to correctly display the pages
+					markup.row(telebot.types.InlineKeyboardButton(" ", callback_data="ignore"), telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(Settings.subscriptionRows-1)))
+					#⬅️ ➡️ 
 			msg = bot.reply_to(message, msg, reply_markup=markup)
 			#SubscribeUserToList()
 
