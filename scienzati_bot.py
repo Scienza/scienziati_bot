@@ -303,7 +303,16 @@ def SubscribeUserToList(userID, listID):
 	if res != None:
 		return True
 	return False
-	
+
+def UnubscribeUserFromList(userID, listID):
+	#If user is not in the list
+	dbC = dbConnection.cursor()
+	dbC.execute('DELETE FROM Subscriptions WHERE User=? AND List=?', (userID, listID))
+	res = dbC.fetchall()
+	if res != None:
+		#User already subscribed
+		return True
+	return False
 	
 def AvailableListsToUser(userID, limit=Settings.subscriptionRows-1, offset=0):
 	#If user is not in the list
@@ -314,6 +323,22 @@ def AvailableListsToUser(userID, limit=Settings.subscriptionRows-1, offset=0):
 		#User already subscribed
 		return res
 	return False
+
+
+def SubscribedLists(userID, limit=Settings.subscriptionRows-1, offset=0):
+	#If user is not in the list
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT Lists.ID, Lists.Name FROM Lists INNER JOIN Subscriptions ON Subscriptions.List = Lists.ID WHERE Subscriptions.User=? LIMIT ? OFFSET ?', (userID, limit,offset))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return res
+	return False
+
+def GetListName(listID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Name` FROM Lists WHERE `ID`=?', (listID,))
+	return dbC.fetchone()[0]
 	
 def UpdateNickname(userID, nickname):
 	dbC = dbConnection.cursor()
@@ -454,7 +479,7 @@ def showLists(message):
 		msg = msg + list[0] + "\n"
 	bot.reply_to(message, msg)
 
-@bot.message_handler(commands=['subscribe', 'registrati'])
+@bot.message_handler(commands=['subscribe', 'join', 'registrati'])
 def subscribeUserListHandler(message):
 	user = GetUser(message.from_user.id)
 	if user != False:
@@ -467,6 +492,8 @@ def subscribeUserListHandler(message):
 			lists = AvailableListsToUser(message.from_user.id)
 			markup = telebot.types.InlineKeyboardMarkup()
 			#Print the lists as inline buttons
+			if len(lists) == 0:
+				msg = "Al momento non è presente nessuna lista.\nSi prega di riprovare in seguito."
 			for ulist in lists:
 				#																			sub-{id} => subscript to list {id}
 				markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="sub-"+str(ulist["ID"])))
@@ -476,6 +503,43 @@ def subscribeUserListHandler(message):
 				#																																	  osub-{n} => offest subscription, needed for pagination, 
 				#Teels the offset to set to correctly display the pages
 				markup.row(telebot.types.InlineKeyboardButton(" ", callback_data="ignore"), telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"osub-"+str(Settings.subscriptionRows-1)))
+				#⬅️ ➡️ 
+			msg = bot.reply_to(message, msg, reply_markup=markup)
+			#SubscribeUserToList()
+
+		elif UserStatus.IsBanned(userStatus):
+			#banned, not much you can do right now
+			bot.reply_to(message, "Error 403 - ❌ Unauthorized")
+		else:
+			#User in another activity (like creating list)
+			bot.reply_to(message, "Sembra che tu sia occupato in un'altra azione (come impostare una biografia).\n Sarebbe opportuno terminare quell'azione prima di cercare di intraprenderne altre")
+	else:
+		bot.reply_to(message, "Sarebbe opportuno registrarsi prima, tu non credi?\nPuoi farlo attraverso il comando /iscrivi")
+
+@bot.message_handler(commands=['subscribedto', 'joinedto', 'inscriptions', 'iscrizioni', 'disiscriviti', 'rimuovi'])
+def unsubscribeUserListHandler(message):
+	user = GetUser(message.from_user.id)
+	if user != False:
+		#The user is registred in DB
+		userStatus = GetUserStatusValue(message.from_user.id)
+		if UserStatus.IsActive(userStatus):
+			#Add to list
+			msg = "Ecco un elenco delle liste attualmente alle quali sei iscritto al momento:\n(Per rimuovere la sottoscrizione, è sufficiente \"tapparla\" e confermare)"
+			#Get available lists
+			lists = SubscribedLists(message.from_user.id)
+			markup = telebot.types.InlineKeyboardMarkup()
+			#Print the lists as inline buttons
+			if len(lists) == 0:
+				msg="Al momento non sei iscritto a nessuna lista.\nPuoi iscriverti ad una lista attraverso il comando /registrati."
+			for ulist in lists:
+				#																			sub-{id} => unsubscribe to list {id}
+				markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+			#If there are still lists, print the page delimiter
+			#if len(lists) > Settings.subscriptionRows-1:
+			if SubscribedLists(message.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
+				#																																	  osub-{n} => offest subscription, needed for pagination, 
+				#Teels the offset to set to correctly display the pages
+				markup.row(telebot.types.InlineKeyboardButton(" ", callback_data="ignore"), telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(Settings.subscriptionRows-1)))
 				#⬅️ ➡️ 
 			msg = bot.reply_to(message, msg, reply_markup=markup)
 			#SubscribeUserToList()
@@ -586,6 +650,99 @@ def callback_query(call):
 						bot.edit_message_text("Annullato." , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 				else:
 					bot.delete_message(call.message.chat.id , call.message.message_id)
+		elif "ousub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					#Show next n rows + offset, osub-{offset}
+					#Safe data checks
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							actualOffset=int(splittedString[1])
+							if actualOffset%(Settings.subscriptionRows-1) == 0:
+								lists = SubscribedLists(call.from_user.id, offset=int(actualOffset))
+								markup = telebot.types.InlineKeyboardMarkup()
+								if len(lists) == 0:
+									bot.edit_message_text("Non sei iscritto a nessuna lista" , call.message.chat.id , call.message.message_id, call.id)
+									return
+								#Print the lists as inline buttons
+								for ulist in lists:
+									#																			sub-{id} => subscript to list {id}
+									markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+								#If there are still lists, print the page delimiter
+								if len(lists) > Settings.subscriptionRows-1:
+									previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"ousub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
+									nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
+									emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+									leftButton, rightButton = emptyArrow,emptyArrow
+									#Check if there are more list
+									if SubscribedLists(call.from_user.id, limit=1, offset=int(actualOffset+Settings.subscriptionRows)) != False:
+										rightButton = nextArrow
+									if actualOffset - Settings.subscriptionRows +2 > 0:
+										leftButton = previousArrow
+									markup.row(leftButton, rightButton)
+								#msg = bot.reply_to(message, msg, reply_markup=markup)
+								bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+								return
+					#Just go away
+					bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
+
+		elif "cusub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							listID=int(splittedString[1])
+							#Remove subscription
+							success = UnubscribeUserFromList(call.from_user.id, listID)
+							if success:
+								bot.answer_callback_query(call.id, text="✅ Disiscritto", show_alert=False)
+							else:
+								bot.answer_callback_query(call.id, text="❌ Si è verificato un errore", show_alert=False)
+							#Edit message back to list
+							lists = SubscribedLists(call.from_user.id)
+							markup = telebot.types.InlineKeyboardMarkup()
+							#Print the lists as inline buttons
+							if len(lists) == 0:
+								bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id)
+							for ulist in lists:
+								#																			sub-{id} => subscript to list {id}
+								markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+							#If there are still lists, print the page delimiter
+							if len(lists) > Settings.subscriptionRows-1:
+								previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"ousub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
+								nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
+								emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+								leftButton, rightButton = emptyArrow,emptyArrow
+								#Check if there are more list
+								if SubscribedLists(call.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
+									rightButton = nextArrow
+								markup.row(leftButton, rightButton)
+							#msg = bot.reply_to(message, msg, reply_markup=markup)
+							bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+							return
+			bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
+
+
+		elif "usub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					#Show next n rows + offset, osub-{offset}
+					#Safe data checks
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							listID=int(splittedString[1])
+							msg="Sei sicuro di volerti disiscrivere dalla lista \"" + GetListName(listID) + "\"?"
+							markup = telebot.types.InlineKeyboardMarkup()
+							markup.row(
+								telebot.types.InlineKeyboardButton(f"⬅️ No", callback_data=f"ousub-0"),
+								telebot.types.InlineKeyboardButton(f"⚠️ Disiscriviti", callback_data=f"cusub-"+str(listID))
+							)
+							bot.edit_message_text(msg , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+							return
+			bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
 		elif "osub-" in call.data:
 			if call.from_user.id == call.message.reply_to_message.from_user.id:
 				if user["Status"] == UserStatus.ACTIVE :
@@ -599,20 +756,24 @@ def callback_query(call):
 								lists = AvailableListsToUser(call.from_user.id, offset=int(actualOffset))
 								markup = telebot.types.InlineKeyboardMarkup()
 								#Print the lists as inline buttons
+								if len(lists) == 0:
+									bot.edit_message_text("Al momento non è presente nessuna lista" , call.message.chat.id , call.message.message_id, call.id)
+									return
 								for ulist in lists:
 									#																			sub-{id} => subscript to list {id}
 									markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="sub-"+str(ulist["ID"])))
 								#If there are still lists, print the page delimiter
-								previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"osub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
-								nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"osub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
-								emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
-								leftButton, rightButton = emptyArrow,emptyArrow
-								#Check if there are more list
-								if AvailableListsToUser(call.from_user.id, limit=1, offset=int(actualOffset+Settings.subscriptionRows)) != False:
-									rightButton = nextArrow
-								if actualOffset - Settings.subscriptionRows +2 > 0:
-									leftButton = previousArrow
-								markup.row(leftButton, rightButton)
+								if len(lists) > Settings.subscriptionRows-1:
+									previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"osub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
+									nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"osub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
+									emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+									leftButton, rightButton = emptyArrow,emptyArrow
+									#Check if there are more list
+									if AvailableListsToUser(call.from_user.id, limit=1, offset=int(actualOffset+Settings.subscriptionRows)) != False:
+										rightButton = nextArrow
+									if actualOffset - Settings.subscriptionRows +2 > 0:
+										leftButton = previousArrow
+									markup.row(leftButton, rightButton)
 								#msg = bot.reply_to(message, msg, reply_markup=markup)
 								bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 								return
