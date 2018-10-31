@@ -122,11 +122,6 @@ class UserStatus: #Enum emulator
 	BANNED = 15
 
 	#Dummy functions - Those functions are "dummy": they are just used to compare a given input to the value in the class
-	def IsWaitingForFirstBio(status):
-		if status == UserStatus.WAITING_FOR_FIRST_BIOGRAPHY:
-			return True
-		return False
-
 	def IsWaitingForBio(status):
 		if status == UserStatus.WAITING_FOR_BIOGRAPHY:
 			return True
