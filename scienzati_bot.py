@@ -457,7 +457,7 @@ def setBio(message):
 				#Asks for the bio
 				dbC = dbConnection.cursor()
 				#res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
-				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.ACTIVE , message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
 				#res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE employeeid = ?;', (0, message.text, message.from_user.id,) )
 				#Tries to force the user to reply to the message
 				#markup = telebot.types.ForceReply(selective=False)
