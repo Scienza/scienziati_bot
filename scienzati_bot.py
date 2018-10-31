@@ -38,7 +38,7 @@ initQuery= """CREATE TABLE IF NOT EXISTS `Users` (
 `Nickname`  TEXT NOT NULL,
 `Biography`  TEXT,
 `Status`  INTEGER NOT NULL DEFAULT 0,
-`Admin`  INTEGER DEFAULT 0,
+`Permissions`  INTEGER DEFAULT 0,
 `ITMessageNumber`  INTEGER DEFAULT 0,
 `OTMessageNumber`  INTEGER DEFAULT 0,
 `LastSeen`  TEXT DEFAULT '0000-00-00 00:00:00',
