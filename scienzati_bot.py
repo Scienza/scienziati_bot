@@ -1,15 +1,23 @@
 import telebot
 #pip3 install PyTelegramBotAPI
-# import json
+import time
 import sqlite3
-from enum import Enum
+
+#Settings class
+
+class Settings:
+	TelegramApiKey = "676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA"
+	SupremeAdmins = []
+	ITGroup = 0
+	OTGroup = -1001176680738
+
 
 ###
 ## Bot Inizialization
 ###
 
 #Create the bot instance
-bot = telebot.TeleBot("676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA")
+bot = telebot.TeleBot(Settings.TelegramApiKey)
 botInfo = bot.get_me()
 print("Authorized on @" + botInfo.username)
 
@@ -67,24 +75,30 @@ dbConnection.commit()
 
 
 
+
+
 ###
 # Constant message values
 ###
 
-intro_mex = """Questo e' il bot del gruppo @scienza,
-/iscrivi iscriviti al database di utenti e a liste di interessi
-/modifica visiona e modifica la propria descrizione
-/liste consulta le attuali liste di interessi
-/nuovalista crea nuove liste
-/privs elenca i privilegi utente"""
+class constResources:
 
-privs_mex = """privs =-1 -> utente non registrato
-       				 = 0 -> utente normale
-       				 = 1 -> utente abituale
-       				 = 2 -> utente assiduo
-       				 = 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)
-      				 = 4 -> amministratore
+	intro_mex = """Questo e' il bot del gruppo @scienza,
+	/iscrivi iscriviti al database di utenti e a liste di interessi
+	/modifica visiona e modifica la propria descrizione
+	/liste consulta le attuali liste di interessi
+	/nuovalista crea nuove liste
+	/privs elenca i privilegi utente"""
+
+	privs_mex = """privs =-1 -> utente non registrato
+						= 0 -> utente normale
+						= 1 -> utente abituale
+						= 2 -> utente assiduo
+						= 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)
+						= 4 -> amministratore
 		       		 = 5 -> fondatore"""
+	
+	gdpr_message = "Raccogliamo il numero di messaggi, nickname, ID e ultima volta che l'utente ha scritto. Per richiedere l'eliminazione dei propri dati contattare un amministratore ed uscire dal gruppo"
 
 
 
@@ -99,8 +113,8 @@ privs_mex = """privs =-1 -> utente non registrato
 # -1 - User just created - needs to insert bio
 # 0 - User created
 # 15 - Banned
-#
-#
+
+
 class UserStatus: #Enum emulator
 	WAITING_FOR_BIOGRAPHY = -2
 	USER_JUST_CREATED = -1
@@ -134,7 +148,8 @@ class UserStatus: #Enum emulator
 		if status == UserStatus.BANNED:
 			return False 
 		return True
-	
+
+
 
 # Permissions legend
 #
@@ -157,15 +172,20 @@ class UserPermission: #Siply do an AND with the permission
 		return False
 
 
+
+
+
+
 ###
 # Helper functions
 #  Those functions will be used as support functions for the bot. 
 #  Those are mosltry "database wrappers"
 ###
 
-# GetUserPermissionsValue takes the userID as input and returns the permission value (int) direclty from the database
-def GetUserPermissionsValue(userID):
-	#Create a database cursor
+#GetUser is used to return the row corresponding to the user in the database.
+#It went introduced because the same query repeted over and over
+def GetUser(userID):
+		#Create a database cursor
 	dbC = dbConnection.cursor()
 	#Selects the users
 	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
@@ -178,34 +198,64 @@ def GetUserPermissionsValue(userID):
 			raise Exception('The user exceed 1. Something could be wrong with the database. Code error #S658')
 		else:
 			#The users exists, returns the permission
-			return rows[0]["Permissions"]
+			return rows[0]
 	else:
 		#No record found - ID could be erroneous
 		#TODO: Throw error?
 		return False
+
+#UpdateBio is a helper function to update the biography of a user.
+#It returns true in case of success, otherwise it returns false
+def UpdateBio(userdID, bio):
+	dbC = dbConnection.cursor()
+	res = dbC.execute('INSERT INTO Users (ID, Nickname, Status) VALUES (?,?,?)', (userdID, bio, UserStatus.USER_JUST_CREATED,) )
+	if res:
+		return True
+	return False
+
+# GetUserPermissionsValue takes the userID as input and returns the permission value (int) direclty from the database
+def GetUserPermissionsValue(userID):
+	user = GetUser(userID)
+	if user != False:
+		return user["Permissions"]
+	#No user exist, returning Flase for now
+	return False
 
 def GetUserStatusValue(userID):
-	#Create a database cursor
+	user = GetUser(userID)
+	if user != False:
+		return user["Status"]
+	#No user exist, returning Flase for now
+	return False
+
+#IncrITGroupMessagesCount increments the number of messages in the IT group
+def IncrITGroupMessagesCount(userID):
 	dbC = dbConnection.cursor()
-	#Selects the users
-	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
-	#Fetch the results
-	rows = dbC.fetchall()
-	#Check if the users exists
-	if len(rows) > 0:
-		if len(rows) > 1:
-			#something's wrong here, the ID shouln't be greater than one
-			raise Exception('The is more than one user. Something could be wrong with the database. Code error #G854')
-		else:
-			#The users exists, returns the permission
-			return rows[0]["Status"]
-	else:
-		#No record found - ID could be erroneous
-		#TODO: Throw error?
-		return False
+	res = dbC.execute('UPDATE Users SET ITMessageNumber = ITMessageNumber + 1 WHERE ID = ?', (userID,) )
+	if res:
+		CommitDb()
+		return True
+	return False
 
+#IncrOTGroupMessagesCount increments the number of messages in the OT group
+def IncrOTGroupMessagesCount(userID):
+	dbC = dbConnection.cursor()
+	res = dbC.execute('UPDATE Users SET OTMessageNumber = OTMessageNumber + 1 WHERE ID = ?', (userID,) )
+	if res:
+		CommitDb()
+		return True
+	return False
 
+def UpdateLastSeen(userID, date):
+	dbC = dbConnection.cursor()
+	res = dbC.execute('UPDATE Users SET LastSeen=? WHERE ID = ?', (date, userID,) )
+	if res:
+		CommitDb()
+		return True
+	return False
 
+def CommitDb():
+	dbConnection.commit()
 
 ###
 # Bot functions
@@ -215,18 +265,22 @@ def GetUserStatusValue(userID):
 # This is the function called when the bot is started or the help commands are sent
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-	bot.reply_to(message, intro_mex)
+	bot.reply_to(message, constResources.intro_mex)
 	bot.reply_to(message, "Tost")
 
 # Replies with the static message before
 @bot.message_handler(commands=['privs'])
 def send_privs(message):
-	bot.reply_to(message, privs_mex)
+	bot.reply_to(message, constResources.privs_mex)
+
+# Replies with the static message before
+@bot.message_handler(commands=['gdpr'])
+def send_gdrp(message):
+	bot.reply_to(message, constResources.gdpr_message)
 
 ### Messaggio di Iscrizione 
 @bot.message_handler(commands=['iscrivi'])
 def start_user_registration(message):
-	bot.reply_to(message, "Test")
 	if not message.from_user.is_bot and message.text != "" :
 		# Tries to see 
 		dbC = dbConnection.cursor()
@@ -261,20 +315,16 @@ def start_user_registration(message):
 def setBio(message):
 	if not message.from_user.is_bot and message.text != "" :
 		# Gets info about the user
-		dbC = dbConnection.cursor()
-		dbC.execute('SELECT * FROM Users WHERE ID=?', (message.from_user.id,))
-		rows = dbC.fetchall()
-
+		user = GetUser(message.from_user.id)
 		#Check if the user exists
-		if len(rows) < 1:
+		if user == False:
 			#the user does not exist
 			msg = bot.reply_to(message, "Non sei ancora registrato. Puoi registrarti attraverso il comando /iscrivi ")
-
 		#Check its status
-		if len(rows) == 1:
+		else:
 			#There's only one user, as it's supposed to be
 			#Check if the user needs to set a biography
-			if UserStatus.CanEnterBio(rows[0]["Status"]):
+			if UserStatus.CanEnterBio(user["Status"]):
 				#Asks for the bio
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
@@ -287,36 +337,47 @@ def setBio(message):
 				#Nothing to do here
 				msg = bot.reply_to(message, "You are already ok")
 
-		else:
-			#Something's wrongs, there shouldn't be more than one 1 user with the same ID
-			#The "error code" is a random string, univoque in the code, to see where the code faulted
-			msg = bot.reply_to(message, "Errore generico, conttattare un admin.\nCodice: #E643")
-
 
 
 @bot.message_handler(func=lambda m: True)
 def genericMessageHandler(message):
 	#get info about the user
-	dbC = dbConnection.cursor()
-	dbC.execute('SELECT * FROM Users WHERE ID=?', (message.from_user.id,))
-	rows = dbC.fetchall()
 
+	user = GetUser(message.from_user.id)
+	if user != False:
+		#The user is registred in DB
 
-	#Check for biography
-	if len(rows) == 1:
-		if rows[0]["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
+		#Check for biography
+		if user["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
 			#User is setting the Bio
 			if message.chat.type == "private":
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
 				#Tries to force the user to reply to the message
 				
 			#TODO: Not sure about the order - needs to be checked
-			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.chat.reply_to_message == botInfo.ID:
+			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message.from_user.id == botInfo.id:
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
+		else:
+			#Normal message, increment message counter
+			#update lastseen
+			UpdateLastSeen(message.from_user.id, time.strftime('%Y-%m-%d %H:%M:%S',
+			#Telegram sends the date in a epoch format 
+			#https://core.telegram.org/bots/api#message
+			# Need to convert it
+			#https://stackoverflow.com/a/12400584
+			time.localtime(message.date)))
+
+			if not message.from_user.is_bot and message.text != "" :
+				if message.chat.id == Settings.ITGroup:
+					#Increment IT group messages cunt
+					IncrITGroupMessagesCount(message.from_user.id)
+				elif message.chat.id == Settings.OTGroup:
+					#Increment OT group messages cunt
+					IncrOTGroupMessagesCount(message.from_user.id)
 		dbConnection.commit()
 
 
@@ -409,13 +470,13 @@ def print_database(message):
 	else:
 		bot.reply_to(message, str(database.get(message.from_user.id,None)))
 """
-
+"""
 @bot.message_handler(func=lambda m: True)
 def reply_all(message):
 	if not message.from_user.is_bot:
 		bot.reply_to(message, "Ciao " + message.from_user.first_name + 
 		                      ",\nusa /help o /start per una lista dei comandi")
-
+"""
 
 ###
 #Starts the bot
