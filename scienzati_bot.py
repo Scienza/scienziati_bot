@@ -101,6 +101,27 @@ privs_mex = """privs =-1 -> utente non registrato
 # x0xx -  flag - 1 = can post to channel
 #
 
+
+
+###
+# Utils functions
+#  Those functions will be used as support functions for the bot. 
+###
+def IsBanned(userID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
+	rows = dbC.fetchall()
+	if len(rows) > 0:
+		#The user exists in database
+		if rows[0]["Status"] == 15:
+			return True
+		return False
+	else:
+		#No record found - ID could be erroneous
+		#TODO: Throw error?
+		return False
+
+
 ###
 # Bot functions
 ###
