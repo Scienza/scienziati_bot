@@ -647,7 +647,7 @@ def genericMessageHandler(message):
 					#.lower()
 					if ListExists(listName):
 						users = GetListSubscribers(GetListID(listName))
-						if len(users) > 0:
+						if users != False:
 							variations = ["alla riscossa!", "all'attacco!", "che la conoscenza sia con voi!", "il mondo confida in voi!", 
 							"che la vostra conoscenza possa illuminare la via!", "possa la vostra conoscenza aprire nuove vie!"]
 							msg = "Gente di " + listName + ", " + random.choice(variations) + "\n"
