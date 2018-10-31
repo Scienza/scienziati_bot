@@ -8,7 +8,7 @@ import random
 
 class Settings:
 	TelegramApiKey = "676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA"
-	SupremeAdmins = []
+	SupremeAdmins = [14092073]
 	ITGroup = 0
 	OTGroup = -1001176680738
 	subscriptionRows = 7
@@ -487,7 +487,7 @@ def setBio(message):
 #Creazione di una nuova lista
 @bot.message_handler(commands=['newlist', 'nuovalista'])
 def newList(message):
-	if UserPermission.CanCreateList(GetUserPermissionsValue(message.from_user.id)) and not UserStatus.IsBanned(message.from_user.id):
+	if message.from_user.id in Settings.SupremeAdmins or UserPermission.IsAdmin(GetUserPermissionsValue(message.from_user.id)) or UserPermission.CanCreateList(GetUserPermissionsValue(message.from_user.id)):
 		if not message.from_user.is_bot and message.text != "" :
 			# Gets info about the user
 			user = GetUser(message.from_user.id)
