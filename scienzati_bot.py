@@ -315,7 +315,10 @@ def AvailableListsToUser(userID, limit=Settings.subscriptionRows-1, offset=0):
 		return res
 	return False
 	
-
+def UpdateNickname(userID, nickname):
+	dbC = dbConnection.cursor()
+	dbC.execute('UPDATE Users SET Nickname=? + 1 WHERE ID = ?', (nickname, userID, ))
+	
 
 
 #Abort the inserting process of a new Bio
