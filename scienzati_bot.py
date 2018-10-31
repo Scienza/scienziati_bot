@@ -457,8 +457,7 @@ def callback_query(call):
 				else:
 					bot.delete_message(call.message.chat.id , call.message.message_id)
 						
-	#else:
-	#	Who are you?
+
 
 
 """
