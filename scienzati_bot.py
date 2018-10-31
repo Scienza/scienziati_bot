@@ -97,6 +97,8 @@ class constResources:
 						= 3 -> utente storico (puo' inoltrare al canale, puo' creare nuove liste)
 						= 4 -> amministratore
 		       		 = 5 -> fondatore"""
+	
+	gdpr_message = "Raccogliamo il numero di messaggi, nickname, ID e ultima volta che l'utente ha scritto. Per richiedere l'eliminazione dei propri dati contattare un amministratore ed uscire dal gruppo"
 
 
 
@@ -270,6 +272,11 @@ def send_welcome(message):
 @bot.message_handler(commands=['privs'])
 def send_privs(message):
 	bot.reply_to(message, constResources.privs_mex)
+
+# Replies with the static message before
+@bot.message_handler(commands=['gdpr'])
+def send_privs(message):
+	bot.reply_to(message, constResources.gdpr_message)
 
 ### Messaggio di Iscrizione 
 @bot.message_handler(commands=['iscrivi'])
