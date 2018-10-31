@@ -274,10 +274,20 @@ def CommitDb():
 #CreateNewListWithoutDesc creates a new list :O
 def CreateNewList(name):
 	dbC = dbConnection.cursor()
-	res = dbC.execute('INSERT INTO Lists (Name) VALUES (?)', (name,) )
-	if res:
-		return True
-	return False
+	try:
+		res = dbC.execute('INSERT INTO Lists (Name) VALUES (?)', (name,) )
+		if res:
+			return True
+		return False
+	except:
+		return False
+
+def GetLists():
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Name` FROM Lists')
+	return dbC.fetchall()
+
+
 
 #Abort the inserting process of a new Bio
 #WARNING: CHECK IF USER IS BANNED BEFORE, OR HE WILL GET UNBANNED
@@ -366,7 +376,8 @@ def setBio(message):
 			if UserStatus.CanEnterBio(user["Status"]):
 				#Asks for the bio
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
+				#res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.ACTIVE , message.from_user.id,) )
 				#res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE employeeid = ?;', (0, message.text, message.from_user.id,) )
 				#Tries to force the user to reply to the message
 				#markup = telebot.types.ForceReply(selective=False)
@@ -406,8 +417,10 @@ def newList(message):
 #Lista delle liste
 @bot.message_handler(commands=['lists', 'liste'])
 def showLists(message):
-	#getLists()#TODO implement method
-	bot.reply_to(message, "NOT IMPLEMENTED EXCEPTION! \n AUTODESTRUCTION SEQUENCE CORRECTLY STARTED")
+	msg = "Ecco le liste esistenti al momento:\n"
+	for list in GetLists():
+		msg = msg + list[0] + "\n"
+	bot.reply_to(message, msg)
 
 @bot.message_handler(func=lambda m: True)
 def genericMessageHandler(message):
@@ -441,7 +454,7 @@ def genericMessageHandler(message):
 				if success:
 					msg = bot.reply_to(message, "Lista creata con successo!")
 				else:
-					msg = bot.reply_to(message, "Qualcosa è andato storto :c !")
+					msg = bot.reply_to(message, "Qualcosa è andato storto :c\n Sei sicuro che non esista già una lista con lo stesso nome?")
 				#Tries to force the user to reply to the message
 				
 			#TODO: Not sure about the order - needs to be checked
@@ -450,7 +463,7 @@ def genericMessageHandler(message):
 				if success:
 					msg = bot.reply_to(message, "Lista creata con successo!")
 				else:
-					msg = bot.reply_to(message, "Qualcosa è andato storto :c !")
+					msg = bot.reply_to(message, "Qualcosa è andato storto :c\n Sei sicuro che non esista già una lista con lo stesso nome?")
 		
 		else:
 			#Normal message, increment message counter
