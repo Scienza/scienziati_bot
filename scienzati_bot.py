@@ -737,7 +737,7 @@ def callback_query(call):
 										leftButton = previousArrow
 									markup.row(leftButton, rightButton)
 								#msg = bot.reply_to(message, msg, reply_markup=markup)
-								bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+								bot.edit_message_text("Ecco un elenco delle liste attualmente alle quali sei iscritto al momento:\n(Per rimuovere la sottoscrizione, è sufficiente \"tapparla\" e confermare)" , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 								return
 					#Just go away
 					bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
