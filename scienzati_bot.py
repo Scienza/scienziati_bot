@@ -2,6 +2,7 @@ import telebot
 #pip3 install PyTelegramBotAPI
 # import json
 import sqlite3
+from enum import Enum
 
 ###
 ## Bot Inizialization
@@ -85,6 +86,14 @@ privs_mex = """privs =-1 -> utente non registrato
       				 = 4 -> amministratore
 		       		 = 5 -> fondatore"""
 
+
+
+###
+# Constant values
+#  Those values are static and are used to represent the user's state/permission
+#  The Permission funtion are used to execute bitwise operations, and the status are simply used to compare the statuses
+###
+
 # Status legend
 # -2 - Waiting for biograhy
 # -1 - User just created - needs to insert bio
@@ -92,7 +101,40 @@ privs_mex = """privs =-1 -> utente non registrato
 # 15 - Banned
 #
 #
+class UserStatus: #Enum emulator
+	WAITING_FOR_BIOGRAPHY = -2
+	USER_JUST_CREATED = -1
+	ACTIVE = 0
+	BANNED = 15
 
+	#Dummy functions - Those functions are "dummy": they are just used to compare a given input to the value in the class
+	def IsWaitingForBio(status):
+		if status == UserStatus.WAITING_FOR_BIOGRAPHY:
+			return True
+		return False
+
+	def IsJustCreated(status):
+		if status == UserStatus.USER_JUST_CREATED:
+			return True
+		return False
+
+	def IsActive(status):
+		if status == UserStatus.ACTIVE:
+			return True
+		return False
+
+	def IsBanned(status):
+		if status == UserStatus.BANNED:
+			return True
+		return False
+
+	# Complex functions
+	#CanEnterBio Is used whern checking if a user has privileges to edit its Biography
+	def CanEnterBio(status):
+		if status == UserStatus.BANNED:
+			return False 
+		return True
+	
 
 # Permissions legend
 #
@@ -100,26 +142,69 @@ privs_mex = """privs =-1 -> utente non registrato
 # xx0x - Channed flag - 1 = can post to channel
 # x0xx -  flag - 1 = can post to channel
 #
+class UserPermission: #Siply do an AND with the permission
+	ADMIN=int('1', 2)
+	CHANNEL=int('10', 2)
 
-
-
-###
-# Utils functions
-#  Those functions will be used as support functions for the bot. 
-###
-def IsBanned(userID):
-	dbC = dbConnection.cursor()
-	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
-	rows = dbC.fetchall()
-	if len(rows) > 0:
-		#The user exists in database
-		if rows[0]["Status"] == 15:
+	def IsAdmin(permission):
+		if (permission & UserPermission.ADMIN) == UserPermission.ADMIN:
 			return True
 		return False
+	
+	def CanForwardToChannel(permission):
+		if (permission & UserPermission.CHANNEL) == UserPermission.CHANNEL:
+			return True
+		return False
+
+
+###
+# Helper functions
+#  Those functions will be used as support functions for the bot. 
+#  Those are mosltry "database wrappers"
+###
+
+# GetUserPermissionsValue takes the userID as input and returns the permission value (int) direclty from the database
+def GetUserPermissionsValue(userID):
+	#Create a database cursor
+	dbC = dbConnection.cursor()
+	#Selects the users
+	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
+	#Fetch the results
+	rows = dbC.fetchall()
+	#Check if the users exists
+	if len(rows) > 0:
+		if len(rows) > 1:
+			#something's wrong here, the ID shouln't be greater than one
+			raise Exception('The user exceed 1. Something could be wrong with the database. Code error #S658')
+		else:
+			#The users exists, returns the permission
+			return rows[0]["Permissions"]
 	else:
 		#No record found - ID could be erroneous
 		#TODO: Throw error?
 		return False
+
+def GetUserStatusValue(userID):
+	#Create a database cursor
+	dbC = dbConnection.cursor()
+	#Selects the users
+	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
+	#Fetch the results
+	rows = dbC.fetchall()
+	#Check if the users exists
+	if len(rows) > 0:
+		if len(rows) > 1:
+			#something's wrong here, the ID shouln't be greater than one
+			raise Exception('The is more than one user. Something could be wrong with the database. Code error #G854')
+		else:
+			#The users exists, returns the permission
+			return rows[0]["Status"]
+	else:
+		#No record found - ID could be erroneous
+		#TODO: Throw error?
+		return False
+
+
 
 
 ###
@@ -157,7 +242,7 @@ def start_user_registration(message):
 			bot.reply_to(message, "creazione nuovo record utente...")
 			#Insert 
 			dbC = dbConnection.cursor()
-			res = dbC.execute('INSERT INTO Users (ID, Nickname, Status) VALUES (?,?,?)', (message.from_user.id, message.from_user.username, -1,) )
+			res = dbC.execute('INSERT INTO Users (ID, Nickname, Status) VALUES (?,?,?)', (message.from_user.id, message.from_user.username, UserStatus.USER_JUST_CREATED,) )
 			dbConnection.commit()
 			if res:
 				msg = bot.reply_to(message, "Congratulazioni, ti sei registrato correttamente! Ora puoi procedere ad inserire la tua biografia attraverso il comando /bio")
@@ -189,10 +274,10 @@ def setBio(message):
 		if len(rows) == 1:
 			#There's only one user, as it's supposed to be
 			#Check if the user needs to set a biography
-			if rows[0]["Status"] == -1:
+			if UserStatus.CanEnterBio(rows[0]["Status"]):
 				#Asks for the bio
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (-2 , message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
 				#res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE employeeid = ?;', (0, message.text, message.from_user.id,) )
 				#Tries to force the user to reply to the message
 				markup = telebot.types.ForceReply(selective=False)
@@ -217,21 +302,20 @@ def genericMessageHandler(message):
 	rows = dbC.fetchall()
 
 
-	print(rows)
 	#Check for biography
 	if len(rows) == 1:
-		if rows[0]["Status"] == -2:
+		if rows[0]["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
 			#User is setting the Bio
 			if message.chat.type == "private":
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (0, message.text, message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
 				#Tries to force the user to reply to the message
 				
 			#TODO: Not sure about the order - needs to be checked
 			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.chat.reply_to_message == botInfo.ID:
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (0, message.text, message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?;', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
 		dbConnection.commit()
 
