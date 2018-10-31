@@ -565,7 +565,7 @@ def unsubscribeUserListHandler(message):
 			lists = SubscribedLists(message.from_user.id)
 			markup = telebot.types.InlineKeyboardMarkup()
 			#Print the lists as inline buttons
-			if len(lists) == 0:
+			if lists == False:
 				msg="Al momento non sei iscritto a nessuna lista.\nPuoi iscriverti ad una lista attraverso il comando /registrati."
 			for ulist in lists:
 				#																			sub-{id} => unsubscribe to list {id}
