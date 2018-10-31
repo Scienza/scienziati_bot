@@ -115,6 +115,7 @@ class constResources:
 
 
 class UserStatus: #Enum emulator
+	WAITING_FOR_LIST = -5
 	WAITING_FOR_BIOGRAPHY = -2
 	USER_JUST_CREATED = -1
 	ACTIVE = 0
@@ -123,6 +124,11 @@ class UserStatus: #Enum emulator
 	#Dummy functions - Those functions are "dummy": they are just used to compare a given input to the value in the class
 	def IsWaitingForBio(status):
 		if status == UserStatus.WAITING_FOR_BIOGRAPHY:
+			return True
+		return False
+
+	def IsWaitingForListName(status):
+		if status == UserStatus.WAITING_FOR_LIST:
 			return True
 		return False
 
@@ -264,15 +270,11 @@ def CommitDb():
 	dbConnection.commit()
 
 
-#CreateNewListWithoutDesc creates a new list without a description 
-def CreateNewListWithoutDesc(name):
-	CreateNewList(name, "")
 
-
-#CreateNewListWithoutDesc creates a new list 
-def CreateNewList(name, desc):
+#CreateNewListWithoutDesc creates a new list :O
+def CreateNewList(name):
 	dbC = dbConnection.cursor()
-	res = dbC.execute('INSERT INTO Lists (Name, Desc) VALUES (?,?)', (name, desc,) )
+	res = dbC.execute('INSERT INTO Lists (Name) VALUES (?)', (name,) )
 	if res:
 		return True
 	return False
@@ -280,6 +282,14 @@ def CreateNewList(name, desc):
 #Abort the inserting process of a new Bio
 #WARNING: CHECK IF USER IS BANNED BEFORE, OR HE WILL GET UNBANNED
 def abortNewBio(userID):
+	dbC = dbConnection.cursor()
+	res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.ACTIVE, userID,) )
+	if res:
+		CommitDb()
+		return True
+	return False
+
+def abortNewList(userID):
 	dbC = dbConnection.cursor()
 	res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.ACTIVE, userID,) )
 	if res:
@@ -296,7 +306,6 @@ def abortNewBio(userID):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
 	bot.reply_to(message, constResources.intro_mex)
-	bot.reply_to(message, "Tost")
 
 # Replies with the static message before
 @bot.message_handler(commands=['privs'])
@@ -375,10 +384,24 @@ def setBio(message):
 @bot.message_handler(commands=['newlist', 'nuovalista'])
 def newList(message):
 	if UserPermission.CanCreateList(GetUserPermissionsValue(message.from_user.id)):
-		values = message.test.split(' ')
-
+		if not message.from_user.is_bot and message.text != "" :
+			# Gets info about the user
+			user = GetUser(message.from_user.id)
+			#Check if the user exists
+			if user == False:
+				#the user does not exist
+				msg = bot.reply_to(message, "Something's wrong here. error code: #R747")
+			else:
+				#Asks for the bio
+				dbC = dbConnection.cursor()
+				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_LIST , message.from_user.id,) )
+				markup = telebot.types.InlineKeyboardMarkup()
+				markup.row_width = 1
+				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aList"))
+				msg = bot.reply_to(message, "Per creare una nuova lista, scrivi il nome in chat privata o in un messaggio che mi risponda rispondendomi", reply_markup=markup)
+				dbConnection.commit()
 	else:
-		msg = bot.reply_to(message, "Error 403 - Unauthorized")
+		msg = bot.reply_to(message, "Error 403 - ❌ Unauthorized")
 
 #Lista delle liste
 @bot.message_handler(commands=['lists', 'liste'])
@@ -408,6 +431,27 @@ def genericMessageHandler(message):
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
+		#Check for list
+		elif user["Status"] == UserStatus.WAITING_FOR_LIST:
+			#User is creating a new list
+			#TODO check for ASCII ONLY (RegEx?), replace spaces with underscores, 
+			listName = message.text
+			if message.chat.type == "private":
+				success = CreateNewList(listName)
+				if success:
+					msg = bot.reply_to(message, "Lista creata con successo!")
+				else:
+					msg = bot.reply_to(message, "Qualcosa è andato storto :c !")
+				#Tries to force the user to reply to the message
+				
+			#TODO: Not sure about the order - needs to be checked
+			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message != None and message.reply_to_message.from_user.id == botInfo.id:
+				success = CreateNewList(listName)
+				if success:
+					msg = bot.reply_to(message, "Lista creata con successo!")
+				else:
+					msg = bot.reply_to(message, "Qualcosa è andato storto :c !")
+		
 		else:
 			#Normal message, increment message counter
 			#update lastseen
@@ -450,6 +494,20 @@ def callback_query(call):
 						bot.edit_message_text("Annullato." , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 				else:
 					bot.delete_message(call.message.chat.id , call.message.message_id)
+		#Check if is to abort list creation
+		if call.data == "aList":
+			#Check if the guy who pressed is the same who asked to set the bio
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				#Check that the user needs to set the bio
+				
+				if user["Status"] == UserStatus.WAITING_FOR_LIST :
+					success = abortNewList(call.from_user.id)
+					if success:
+						markup = telebot.types.InlineKeyboardMarkup()
+						bot.edit_message_text("Annullato." , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+				else:
+					bot.delete_message(call.message.chat.id , call.message.message_id)
+				
 						
 
 
