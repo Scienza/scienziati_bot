@@ -160,6 +160,7 @@ class UserStatus: #Enum emulator
 class UserPermission: #Siply do an AND with the permission
 	ADMIN=int('1', 2)
 	CHANNEL=int('10', 2)
+	CREATE_LIST=int('100', 2)
 
 	def IsAdmin(permission):
 		if (permission & UserPermission.ADMIN) == UserPermission.ADMIN:
@@ -168,6 +169,11 @@ class UserPermission: #Siply do an AND with the permission
 	
 	def CanForwardToChannel(permission):
 		if (permission & UserPermission.CHANNEL) == UserPermission.CHANNEL:
+			return True
+		return False
+	
+	def CanCreateList(permission):
+		if (permission & UserPermission.CREATE_LIST) == UserPermission.CREATE_LIST:
 			return True
 		return False
 
