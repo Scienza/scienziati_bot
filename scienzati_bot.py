@@ -335,16 +335,37 @@ def SubscribedLists(userID, limit=Settings.subscriptionRows-1, offset=0):
 		return res
 	return False
 
+def GetListID(listName):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `ID` FROM Lists WHERE `Name`=?', (listName,))
+	return dbC.fetchone()[0]
+
 def GetListName(listID):
 	dbC = dbConnection.cursor()
 	dbC.execute('SELECT `Name` FROM Lists WHERE `ID`=?', (listID,))
 	return dbC.fetchone()[0]
 	
+def ListExists(listName):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `ID` FROM Lists WHERE `Name`=?', (listName,))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return True
+	return False
+
+def GetListSubscribers(listID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `User` FROM Subscriptions WHERE `List`=?', (listID,))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return res
+	return False
+
 def UpdateNickname(userID, nickname):
 	dbC = dbConnection.cursor()
 	dbC.execute('UPDATE Users SET Nickname=? + 1 WHERE ID = ?', (nickname, userID, ))
-	
-
 
 #Abort the inserting process of a new Bio
 #WARNING: CHECK IF USER IS BANNED BEFORE, OR HE WILL GET UNBANNED
@@ -363,6 +384,8 @@ def abortNewList(userID):
 		CommitDb()
 		return True
 	return False
+
+
 
 ###
 # Bot functions
@@ -598,19 +621,34 @@ def genericMessageHandler(message):
 			#Normal message, increment message counter
 			#update lastseen
 			UpdateLastSeen(message.from_user.id, time.strftime('%Y-%m-%d %H:%M:%S',
-			#Telegram sends the date in a epoch format 
-			#https://core.telegram.org/bots/api#message
-			# Need to convert it
-			#https://stackoverflow.com/a/12400584
-			time.localtime(message.date)))
+				#Telegram sends the date in a epoch format 
+				#https://core.telegram.org/bots/api#message
+				# Need to convert it
+				#https://stackoverflow.com/a/12400584
+				time.localtime(message.date)))
 
-			if not message.from_user.is_bot and message.text != "" :
+			if message.chat.type == "group" or message.chat.type == "supergroup" and not message.from_user.is_bot and message.text != "":
+				if message.text[0] == "#":
+					listName = message.text.strip()[1:]
+					if ListExists(listName):
+						users = GetListSubscribers(GetListName(listName))
+						if len(users) > 0:
+							msg = "Gente di " + listName + ", alla riscossa!\n"
+							for user in users:
+								msg = msg + "@"+user[0] + ", "
+							msg = msg[:len(msg)-2]
+						else:
+							msg = "La lista  " + listName + " non ha ancora nessun iscritto :c"
+						bot.reply_to(msg, "Qualcosa è andato storto :c\n Sei sicuro che non esista già una lista con lo stesso nome?")
+
+				#Message counter
 				if message.chat.id == Settings.ITGroup:
 					#Increment IT group messages cunt
 					IncrITGroupMessagesCount(message.from_user.id)
 				elif message.chat.id == Settings.OTGroup:
 					#Increment OT group messages cunt
-					IncrOTGroupMessagesCount(message.from_user.id)
+						IncrOTGroupMessagesCount(message.from_user.id)
+		UpdateNickname(message.from_user.id, message.from_user.username)
 		dbConnection.commit()
 
 
@@ -813,6 +851,7 @@ def callback_query(call):
 							#msg = bot.reply_to(message, msg, reply_markup=markup)
 							bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 							return
+
 
 
 
