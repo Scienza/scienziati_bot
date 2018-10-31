@@ -390,6 +390,14 @@ def abortNewBio(userID):
 		return True
 	return False
 
+def GetUserBio(userID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Biography` FROM Users WHERE `ID`=?;', (userID,))
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
+
 def abortNewList(userID):
 	dbC = dbConnection.cursor()
 	res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.ACTIVE, userID,) )
@@ -477,11 +485,14 @@ def setBio(message):
 				markup = telebot.types.InlineKeyboardMarkup()
 				markup.row_width = 1
 				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aBio"))
-				msg = bot.reply_to(message, "Per impostare una biografia, scrivila in chat privata o rispondendomi", reply_markup=markup)
+				currentBioMsg = GetUserBio(message.from_user.id)
+				if currentBioMsg != "":
+					currentBioMsg = "La tua attuale biografia è \"" + currentBioMsg + "\".\n"
+				msg = bot.reply_to(message, currentBioMsg + "Per impostare una nuova biografia, scrivimela in chat privata o rispondendomi", reply_markup=markup)
 				dbConnection.commit()
 			else:
 				#Nothing to do here
-				msg = bot.reply_to(message, "You are already ok")
+				msg = bot.reply_to(message, "You can't enter a bio.")
 
 
 #Creazione di una nuova lista
