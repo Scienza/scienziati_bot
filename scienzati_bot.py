@@ -560,7 +560,7 @@ def unsubscribeUserListHandler(message):
 		userStatus = GetUserStatusValue(message.from_user.id)
 		if UserStatus.IsActive(userStatus):
 			#Add to list
-			msg = "Ecco un elenco delle liste attualmente alle quali sei iscritto al momento:\n(Per rimuovere la sottoscrizione, è sufficiente \"tapparla\" e confermare)"
+			msg = "Ecco un elenco delle liste alle quali sei attualmente iscritto:\n(Per rimuovere la sottoscrizione, è sufficiente \"tapparla\" e confermare)"
 			#Get available lists
 			lists = SubscribedLists(message.from_user.id)
 			markup = telebot.types.InlineKeyboardMarkup()
