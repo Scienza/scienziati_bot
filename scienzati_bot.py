@@ -122,6 +122,11 @@ class UserStatus: #Enum emulator
 	BANNED = 15
 
 	#Dummy functions - Those functions are "dummy": they are just used to compare a given input to the value in the class
+	def IsWaitingForFirstBio(status):
+		if status == UserStatus.WAITING_FOR_FIRST_BIOGRAPHY:
+			return True
+		return False
+
 	def IsWaitingForBio(status):
 		if status == UserStatus.WAITING_FOR_BIOGRAPHY:
 			return True
@@ -216,6 +221,7 @@ def UpdateBio(userdID, bio):
 	dbC = dbConnection.cursor()
 	res = dbC.execute('INSERT INTO Users (ID, Nickname, Status) VALUES (?,?,?)', (userdID, bio, UserStatus.USER_JUST_CREATED,) )
 	if res:
+		CommitDb()
 		return True
 	return False
 
@@ -262,6 +268,30 @@ def UpdateLastSeen(userID, date):
 
 def CommitDb():
 	dbConnection.commit()
+
+
+#CreateNewListWithoutDesc creates a new list without a description 
+def CreateNewListWithoutDesc(name):
+	CreateNewList(name, "")
+
+
+#CreateNewListWithoutDesc creates a new list 
+def CreateNewList(name, desc):
+	dbC = dbConnection.cursor()
+	res = dbC.execute('INSERT INTO Lists (Name, Desc) VALUES (?,?)', (name, desc,) )
+	if res:
+		return True
+	return False
+
+#Abort the inserting process of a new Bio
+#WARNING: CHECK IF USER IS BANNED BEFORE, OR HE WILL GET UNBANNED
+def abortNewBio(userID):
+	dbC = dbConnection.cursor()
+	res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.ACTIVE, userID,) )
+	if res:
+		CommitDb()
+		return True
+	return False
 
 ###
 # Bot functions
@@ -336,7 +366,10 @@ def setBio(message):
 				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
 				#res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE employeeid = ?;', (0, message.text, message.from_user.id,) )
 				#Tries to force the user to reply to the message
-				markup = telebot.types.ForceReply(selective=False)
+				#markup = telebot.types.ForceReply(selective=False)
+				markup = telebot.types.InlineKeyboardMarkup()
+				markup.row_width = 2
+				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aBio"))
 				msg = bot.reply_to(message, "Per impostare una biografia, scrivila in chat privata o rispondendomi", reply_markup=markup)
 				dbConnection.commit()
 			else:
@@ -344,6 +377,20 @@ def setBio(message):
 				msg = bot.reply_to(message, "You are already ok")
 
 
+#Creazione di una nuova lista
+@bot.message_handler(commands=['newlist', 'nuovalista'])
+def newList(message):
+	if UserPermission.CanCreateList(GetUserPermissionsValue(message.from_user.id)):
+		values = message.test.split(' ')
+
+	else:
+		msg = bot.reply_to(message, "Error 403 - Unauthorized")
+
+#Lista delle liste
+@bot.message_handler(commands=['lists', 'liste'])
+def showLists(message):
+	#getLists()#TODO implement method
+	bot.reply_to(message, "NOT IMPLEMENTED EXCEPTION! \n AUTODESTRUCTION SEQUENCE CORRECTLY STARTED")
 
 @bot.message_handler(func=lambda m: True)
 def genericMessageHandler(message):
@@ -363,7 +410,7 @@ def genericMessageHandler(message):
 				#Tries to force the user to reply to the message
 				
 			#TODO: Not sure about the order - needs to be checked
-			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message.from_user.id == botInfo.id:
+			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message != None and message.reply_to_message.from_user.id == botInfo.id:
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
 				msg = bot.reply_to(message, "Biografia impostata con successo!")
@@ -388,6 +435,30 @@ def genericMessageHandler(message):
 
 
 
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+	#Sample response
+	# {'game_short_name': None, 'chat_instance': '5537587246343980605', 'id': '60524995438318427', 'from_user': {'id': 14092073, 'is_bot': False, 'first_name': 'Pandry', 'username': 'Pandry', 'last_name': None, 'language_code': 'en-US'}, 'message': {'content_type': 'text', 'message_id': 2910, 'from_user': <telebot.types.User object at 0x040BBB30>, 'date': 1541000520, 'chat': <telebot.types.Chat object at 0x040BBB10>, 'forward_from_chat': None, 'forward_from': None, 'forward_date': None, 'reply_to_message': <telebot.types.Message object at 0x040BBFB0>, 'edit_date': None, 'media_group_id': None, 'author_signature': None, 'text': 'Per impostare una biografia, scrivila in chat privata o rispondendomi', 'entities': None, 'caption_entities': None, 'audio': None, 'document': None, 'photo': None, 'sticker': None, 'video': None, 'video_note': None, 'voice': None, 'caption': None, 'contact': None, 'location': None, 'venue': None, 'new_chat_member': None, 'new_chat_members': None, 'left_chat_member': None, 'new_chat_title': None, 'new_chat_photo': None, 'delete_chat_photo': None, 'group_chat_created': None, 'supergroup_chat_created': None, 'channel_chat_created': None, 'migrate_to_chat_id': None, 'migrate_from_chat_id': None, 'pinned_message': None, 'invoice': None, 'successful_payment': None, 'connected_website': None, 'json': {'message_id': 2910, 'from': {'id': 676490981, 'is_bot': True, 'first_name': 'ScienzaBot', 'username': 'scienzati_bot'}, 'chat': {'id': -1001176680738, 'title': '@Scienza World Domination', 'type': 'supergroup'}, 'date': 1541000520, 'reply_to_message': {'message_id': 2909, 'from': {'id': 14092073,
+	# 'is_bot': False, 'first_name': 'Pandry', 'username': 'Pandry', 'language_code': 'en-US'}, 'chat': {'id': -1001176680738, 'title': '@Scienza World Domination', 'type': 'supergroup'}, 'date': 1541000520, 'text': '/bio', 'entities': [{'offset': 0, 'length': 4, 'type': 'bot_command'}]}, 'text': 'Per impostare una biografia, scrivila in chat privata o rispondendomi'}}, 'data': 'annulla', 'inline_message_id': None}
+	#
+	user = GetUser(call.from_user.id)
+	if user != False:
+		#Check if is to abort bio
+		if call.data == "aBio":
+			#Check if the guy who pressed is the same who asked to set the bio
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				#Check that the user needs to set the bio
+				if user["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY :
+					success = abortNewBio(call.from_user.id)
+					if success:
+						markup = telebot.types.InlineKeyboardMarkup()
+						bot.edit_message_text("Annullato." , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+				else:
+					bot.delete_message(call.message.chat.id , call.message.message_id)
+						
+	#else:
+	#	Who are you?
 
 
 """
