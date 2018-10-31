@@ -2,7 +2,6 @@ import telebot
 #pip3 install PyTelegramBotAPI
 # import json
 import sqlite3
-from enum import Enum
 
 ###
 ## Bot Inizialization
@@ -163,9 +162,10 @@ class UserPermission: #Siply do an AND with the permission
 #  Those are mosltry "database wrappers"
 ###
 
-# GetUserPermissionsValue takes the userID as input and returns the permission value (int) direclty from the database
-def GetUserPermissionsValue(userID):
-	#Create a database cursor
+#getUser is used to return the row corresponding to the user in the database.
+#It went introduced because the same query repeted over and over
+def GetUser(userID):
+		#Create a database cursor
 	dbC = dbConnection.cursor()
 	#Selects the users
 	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
@@ -178,32 +178,28 @@ def GetUserPermissionsValue(userID):
 			raise Exception('The user exceed 1. Something could be wrong with the database. Code error #S658')
 		else:
 			#The users exists, returns the permission
-			return rows[0]["Permissions"]
+			return rows[0]
 	else:
 		#No record found - ID could be erroneous
 		#TODO: Throw error?
 		return False
+
+# GetUserPermissionsValue takes the userID as input and returns the permission value (int) direclty from the database
+def GetUserPermissionsValue(userID):
+	user = GetUser(userID)
+	if user != False:
+		return user["Permissions"]
+	#No user exist, returning Flase for now
+	return False
+
+
 
 def GetUserStatusValue(userID):
-	#Create a database cursor
-	dbC = dbConnection.cursor()
-	#Selects the users
-	dbC.execute('SELECT * FROM Users WHERE ID=?', (userID,))
-	#Fetch the results
-	rows = dbC.fetchall()
-	#Check if the users exists
-	if len(rows) > 0:
-		if len(rows) > 1:
-			#something's wrong here, the ID shouln't be greater than one
-			raise Exception('The is more than one user. Something could be wrong with the database. Code error #G854')
-		else:
-			#The users exists, returns the permission
-			return rows[0]["Status"]
-	else:
-		#No record found - ID could be erroneous
-		#TODO: Throw error?
-		return False
-
+	user = GetUser(userID)
+	if user != False:
+		return user["Status"]
+	#No user exist, returning Flase for now
+	return False
 
 
 
