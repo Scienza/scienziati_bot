@@ -89,10 +89,17 @@ privs_mex = """privs =-1 -> utente non registrato
 # -2 - Waiting for biograhy
 # -1 - User just created - needs to insert bio
 # 0 - User created
-# 
+# 15 - Banned
 #
 #
 
+
+# Permissions legend
+#
+# xxx0 - Admin flag - 1 = admin
+# xx0x - Channed flag - 1 = can post to channel
+# x0xx -  flag - 1 = can post to channel
+#
 
 ###
 # Bot functions
