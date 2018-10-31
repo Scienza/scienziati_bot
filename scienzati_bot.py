@@ -275,7 +275,7 @@ def send_privs(message):
 
 # Replies with the static message before
 @bot.message_handler(commands=['gdpr'])
-def send_privs(message):
+def send_gdrp(message):
 	bot.reply_to(message, constResources.gdpr_message)
 
 ### Messaggio di Iscrizione 
