@@ -2,6 +2,7 @@ import telebot
 #pip3 install PyTelegramBotAPI
 import time
 import sqlite3
+import random
 
 #Settings class
 
@@ -270,7 +271,13 @@ def UpdateLastSeen(userID, date):
 def CommitDb():
 	dbConnection.commit()
 
-
+def GetUserNickname(userID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Nickname` FROM Users WHERE `ID`=?;', (userID,))
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
 
 #CreateNewListWithoutDesc creates a new list :O
 def CreateNewList(name):
@@ -337,13 +344,19 @@ def SubscribedLists(userID, limit=Settings.subscriptionRows-1, offset=0):
 
 def GetListID(listName):
 	dbC = dbConnection.cursor()
-	dbC.execute('SELECT `ID` FROM Lists WHERE `Name`=?', (listName,))
-	return dbC.fetchone()[0]
+	dbC.execute('SELECT `ID` FROM Lists WHERE `Name`=?;', [listName])
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
 
 def GetListName(listID):
 	dbC = dbConnection.cursor()
-	dbC.execute('SELECT `Name` FROM Lists WHERE `ID`=?', (listID,))
-	return dbC.fetchone()[0]
+	dbC.execute('SELECT `Name` FROM Lists WHERE `ID`=?;', (listID,))
+	res = dbC.fetchone()
+	if res != None:
+		return res
+	return False
 	
 def ListExists(listName):
 	dbC = dbConnection.cursor()
@@ -365,7 +378,7 @@ def GetListSubscribers(listID):
 
 def UpdateNickname(userID, nickname):
 	dbC = dbConnection.cursor()
-	dbC.execute('UPDATE Users SET Nickname=? + 1 WHERE ID = ?', (nickname, userID, ))
+	dbC.execute('UPDATE Users SET Nickname=? WHERE ID = ?', (nickname, userID, ))
 
 #Abort the inserting process of a new Bio
 #WARNING: CHECK IF USER IS BANNED BEFORE, OR HE WILL GET UNBANNED
@@ -582,6 +595,7 @@ def genericMessageHandler(message):
 	user = GetUser(message.from_user.id)
 	if user != False:
 		#The user is registred in DB
+		UpdateNickname(message.from_user.id, message.from_user.username)
 
 		#Check for biography
 		if user["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
@@ -628,18 +642,21 @@ def genericMessageHandler(message):
 				time.localtime(message.date)))
 
 			if message.chat.type == "group" or message.chat.type == "supergroup" and not message.from_user.is_bot and message.text != "":
-				if message.text[0] == "#":
+				if message.text[0] == "#" or message.text[0] == "@" or message.text[0] == "." or message.text[0] == "!":
 					listName = message.text.strip()[1:]
+					#.lower()
 					if ListExists(listName):
-						users = GetListSubscribers(GetListName(listName))
+						users = GetListSubscribers(GetListID(listName))
 						if len(users) > 0:
-							msg = "Gente di " + listName + ", alla riscossa!\n"
+							variations = ["alla riscossa!", "all'attacco!", "che la conoscenza sia con voi!", "il mondo confida in voi!", 
+							"che la vostra conoscenza possa illuminare la via!", "possa la vostra conoscenza aprire nuove vie!"]
+							msg = "Gente di " + listName + ", " + random.choice(variations) + "\n"
 							for user in users:
-								msg = msg + "@"+user[0] + ", "
+								msg = msg + "@"+GetUserNickname(user[0]) + ", "
 							msg = msg[:len(msg)-2]
 						else:
 							msg = "La lista  " + listName + " non ha ancora nessun iscritto :c"
-						bot.reply_to(msg, "Qualcosa è andato storto :c\n Sei sicuro che non esista già una lista con lo stesso nome?")
+						bot.reply_to(message, msg)
 
 				#Message counter
 				if message.chat.id == Settings.ITGroup:
@@ -648,7 +665,7 @@ def genericMessageHandler(message):
 				elif message.chat.id == Settings.OTGroup:
 					#Increment OT group messages cunt
 						IncrOTGroupMessagesCount(message.from_user.id)
-		UpdateNickname(message.from_user.id, message.from_user.username)
+		
 		dbConnection.commit()
 
 
