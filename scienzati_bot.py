@@ -3,6 +3,7 @@ import telebot
 import time
 import sqlite3
 import random
+import re
 
 #Settings class
 
@@ -406,6 +407,13 @@ def abortNewList(userID):
 		return True
 	return False
 
+def getUsersIdLike(userNick):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `ID` FROM Users WHERE `Nickname` LIKE ?;', ("%"+userNick.replace("%", ":%")+"%",))
+	res = dbC.fetchall()
+	if res != None:
+		return res
+	return False
 
 
 ###
@@ -443,7 +451,7 @@ def start_user_registration(message):
 			bot.reply_to(message, "Sei già registrato in database. se desideri modificare la tua biografia puoi farlo mediante il comando /bio")
 		else:
 			#The user needs to be created
-			bot.reply_to(message, "creazione nuovo record utente...")
+			#bot.reply_to(message, "creazione nuovo record utente...")
 			#Insert 
 			dbC = dbConnection.cursor()
 			res = dbC.execute('INSERT INTO Users (ID, Nickname, Status) VALUES (?,?,?)', (message.from_user.id, message.from_user.username, UserStatus.USER_JUST_CREATED,) )
@@ -486,8 +494,10 @@ def setBio(message):
 				markup.row_width = 1
 				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aBio"))
 				currentBioMsg = GetUserBio(message.from_user.id)
-				if currentBioMsg != "":
+				if currentBioMsg != None and currentBioMsg != "":
 					currentBioMsg = "La tua attuale biografia è \"" + currentBioMsg + "\".\n"
+				else:
+					currentBioMsg = ""
 				msg = bot.reply_to(message, currentBioMsg + "Per impostare una nuova biografia, scrivimela in chat privata o rispondendomi", reply_markup=markup)
 				dbConnection.commit()
 			else:
@@ -607,7 +617,7 @@ def genericMessageHandler(message):
 	user = GetUser(message.from_user.id)
 	if user != False:
 		#The user is registred in DB
-		UpdateNickname(message.from_user.id, message.from_user.username)
+		UpdateNickname(message.from_user.id, message.from_user.username.lower())
 
 		#Check for biography
 		if user["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
@@ -626,7 +636,11 @@ def genericMessageHandler(message):
 		elif user["Status"] == UserStatus.WAITING_FOR_LIST:
 			#User is creating a new list
 			#TODO check for ASCII ONLY (RegEx?), replace spaces with underscores, 
-			listName = message.text
+			listName = message.text.lower()
+			p = re.compile(r'[a-z0-9_\-]+', re.IGNORECASE)
+			if not p.match(listName):
+				bot.reply_to(message, "Qualcosa è andato storto :c\n Il nome sembra contenre caratteri non permessi. Sono permesse solo lettere, numeri, underscores(_) e trattini")
+				return
 			if message.chat.type == "private":
 				success = CreateNewList(listName)
 				if success:
@@ -655,8 +669,7 @@ def genericMessageHandler(message):
 
 			if message.chat.type == "group" or message.chat.type == "supergroup" and not message.from_user.is_bot and message.text != "":
 				if message.text[0] == "#" or message.text[0] == "@" or message.text[0] == "." or message.text[0] == "!":
-					listName = message.text.strip()[1:]
-					#.lower()
+					listName = message.text.strip()[1:].lower()
 					if ListExists(listName):
 						users = GetListSubscribers(GetListID(listName))
 						if users != False:
@@ -881,7 +894,18 @@ def callback_query(call):
 							bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 							return
 
-
+@bot.inline_handler(func=lambda chosen_inline_result: True)
+def getUserBioInlineQuery(inline_query):
+	user = inline_query.query.lower()
+	responses = []
+	usersIDs = getUsersIdLike(user)
+	for userid in usersIDs:
+		userNick = GetUserNickname(userid[0])
+		responses.append(
+			telebot.types.InlineQueryResultArticle(len(responses)+1,  userNick[0].upper() + userNick[1:] + "'s Bio: " + GetUserBio(userid[0]), telebot.types.InputTextMessageContent(GetUserBio(userid[0])))
+		) 
+	bot.answer_inline_query(inline_query.id, responses)
+    # Query message is text
 ###
 #Starts the bot
 ###
