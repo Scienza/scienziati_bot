@@ -2,14 +2,17 @@ import telebot
 #pip3 install PyTelegramBotAPI
 import time
 import sqlite3
+import random
+import re
 
 #Settings class
 
 class Settings:
 	TelegramApiKey = "676490981:AAELlmTlQLD4_1HojhzWIX4yISDrVU5qDmA"
-	SupremeAdmins = []
+	SupremeAdmins = [14092073]
 	ITGroup = 0
 	OTGroup = -1001176680738
+	subscriptionRows = 7
 
 
 ###
@@ -190,7 +193,7 @@ class UserPermission: #Siply do an AND with the permission
 ###
 # Helper functions
 #  Those functions will be used as support functions for the bot. 
-#  Those are mosltry "database wrappers"
+#  Those function are "database wrappers"
 ###
 
 #GetUser is used to return the row corresponding to the user in the database.
@@ -269,15 +272,114 @@ def UpdateLastSeen(userID, date):
 def CommitDb():
 	dbConnection.commit()
 
-
+def GetUserNickname(userID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Nickname` FROM Users WHERE `ID`=?;', (userID,))
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
 
 #CreateNewListWithoutDesc creates a new list :O
 def CreateNewList(name):
 	dbC = dbConnection.cursor()
-	res = dbC.execute('INSERT INTO Lists (Name) VALUES (?)', (name,) )
-	if res:
+	try:
+		res = dbC.execute('INSERT INTO Lists (Name) VALUES (?)', (name,) )
+		if res:
+			return True
+		return False
+	except:
+		return False
+
+def GetLists():
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Name` FROM Lists')
+	return dbC.fetchall()
+
+def SubscribeUserToList(userID, listID):
+	#If user is not in the list
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT * FROM Subscriptions WHERE User=? AND List=?', (userID, listID))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return False
+	#Create subscription
+	dbC = dbConnection.cursor()
+	dbC.execute('INSERT INTO Subscriptions (User, List) VALUES (?,?)', (userID, listID))
+	res = dbC.fetchall()
+	if res != None:
 		return True
 	return False
+
+def UnubscribeUserFromList(userID, listID):
+	#If user is not in the list
+	dbC = dbConnection.cursor()
+	dbC.execute('DELETE FROM Subscriptions WHERE User=? AND List=?', (userID, listID))
+	res = dbC.fetchall()
+	if res != None:
+		#User already subscribed
+		return True
+	return False
+	
+def AvailableListsToUser(userID, limit=Settings.subscriptionRows-1, offset=0):
+	#If user is not in the list
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT ID, Name FROM Lists WHERE Lists.ID NOT IN (SELECT List FROM Subscriptions WHERE User=?) LIMIT ? OFFSET ?', (userID, limit,offset))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return res
+	return False
+
+
+def SubscribedLists(userID, limit=Settings.subscriptionRows-1, offset=0):
+	#If user is not in the list
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT Lists.ID, Lists.Name FROM Lists INNER JOIN Subscriptions ON Subscriptions.List = Lists.ID WHERE Subscriptions.User=? LIMIT ? OFFSET ?', (userID, limit,offset))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return res
+	return False
+
+def GetListID(listName):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `ID` FROM Lists WHERE `Name`=?;', [listName])
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
+
+def GetListName(listID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Name` FROM Lists WHERE `ID`=?;', (listID,))
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
+	
+def ListExists(listName):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `ID` FROM Lists WHERE `Name`=?', (listName,))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return True
+	return False
+
+def GetListSubscribers(listID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `User` FROM Subscriptions WHERE `List`=?', (listID,))
+	res = dbC.fetchall()
+	if len(res) >0:
+		#User already subscribed
+		return res
+	return False
+
+def UpdateNickname(userID, nickname):
+	dbC = dbConnection.cursor()
+	dbC.execute('UPDATE Users SET Nickname=? WHERE ID = ?', (nickname, userID, ))
 
 #Abort the inserting process of a new Bio
 #WARNING: CHECK IF USER IS BANNED BEFORE, OR HE WILL GET UNBANNED
@@ -289,6 +391,14 @@ def abortNewBio(userID):
 		return True
 	return False
 
+def GetUserBio(userID):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `Biography` FROM Users WHERE `ID`=?;', (userID,))
+	res = dbC.fetchone()
+	if res != None:
+		return res[0]
+	return False
+
 def abortNewList(userID):
 	dbC = dbConnection.cursor()
 	res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.ACTIVE, userID,) )
@@ -296,6 +406,15 @@ def abortNewList(userID):
 		CommitDb()
 		return True
 	return False
+
+def getUsersIdLike(userNick):
+	dbC = dbConnection.cursor()
+	dbC.execute('SELECT `ID` FROM Users WHERE `Nickname` LIKE ?;', ("%"+userNick.replace("%", ":%")+"%",))
+	res = dbC.fetchall()
+	if res != None:
+		return res
+	return False
+
 
 ###
 # Bot functions
@@ -332,7 +451,7 @@ def start_user_registration(message):
 			bot.reply_to(message, "Sei già registrato in database. se desideri modificare la tua biografia puoi farlo mediante il comando /bio")
 		else:
 			#The user needs to be created
-			bot.reply_to(message, "creazione nuovo record utente...")
+			#bot.reply_to(message, "creazione nuovo record utente...")
 			#Insert 
 			dbC = dbConnection.cursor()
 			res = dbC.execute('INSERT INTO Users (ID, Nickname, Status) VALUES (?,?,?)', (message.from_user.id, message.from_user.username, UserStatus.USER_JUST_CREATED,) )
@@ -366,24 +485,30 @@ def setBio(message):
 			if UserStatus.CanEnterBio(user["Status"]):
 				#Asks for the bio
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
+				#res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.WAITING_FOR_BIOGRAPHY , message.from_user.id,) )
 				#res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE employeeid = ?;', (0, message.text, message.from_user.id,) )
 				#Tries to force the user to reply to the message
 				#markup = telebot.types.ForceReply(selective=False)
 				markup = telebot.types.InlineKeyboardMarkup()
-				markup.row_width = 2
+				markup.row_width = 1
 				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aBio"))
-				msg = bot.reply_to(message, "Per impostare una biografia, scrivila in chat privata o rispondendomi", reply_markup=markup)
+				currentBioMsg = GetUserBio(message.from_user.id)
+				if currentBioMsg != None and currentBioMsg != "":
+					currentBioMsg = "La tua attuale biografia è \"" + currentBioMsg + "\".\n"
+				else:
+					currentBioMsg = ""
+				msg = bot.reply_to(message, currentBioMsg + "Per impostare una nuova biografia, scrivimela in chat privata o rispondendomi", reply_markup=markup)
 				dbConnection.commit()
 			else:
 				#Nothing to do here
-				msg = bot.reply_to(message, "You are already ok")
+				msg = bot.reply_to(message, "You can't enter a bio.")
 
 
 #Creazione di una nuova lista
 @bot.message_handler(commands=['newlist', 'nuovalista'])
 def newList(message):
-	if UserPermission.CanCreateList(GetUserPermissionsValue(message.from_user.id)):
+	if message.from_user.id in Settings.SupremeAdmins or UserPermission.IsAdmin(GetUserPermissionsValue(message.from_user.id)) or UserPermission.CanCreateList(GetUserPermissionsValue(message.from_user.id)):
 		if not message.from_user.is_bot and message.text != "" :
 			# Gets info about the user
 			user = GetUser(message.from_user.id)
@@ -394,7 +519,7 @@ def newList(message):
 			else:
 				#Asks for the bio
 				dbC = dbConnection.cursor()
-				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?;', (UserStatus.WAITING_FOR_LIST , message.from_user.id,) )
+				res = dbC.execute('UPDATE Users SET Status=? WHERE ID = ?', (UserStatus.WAITING_FOR_LIST , message.from_user.id,) )
 				markup = telebot.types.InlineKeyboardMarkup()
 				markup.row_width = 1
 				markup.add(telebot.types.InlineKeyboardButton('❌ Annulla', callback_data=f"aList"))
@@ -406,16 +531,93 @@ def newList(message):
 #Lista delle liste
 @bot.message_handler(commands=['lists', 'liste'])
 def showLists(message):
-	#getLists()#TODO implement method
-	bot.reply_to(message, "NOT IMPLEMENTED EXCEPTION! \n AUTODESTRUCTION SEQUENCE CORRECTLY STARTED")
+	msg = "Ecco le liste esistenti al momento:\n"
+	for list in GetLists():
+		msg = msg + list[0] + "\n"
+	bot.reply_to(message, msg)
+
+@bot.message_handler(commands=['subscribe', 'join', 'registrati'])
+def subscribeUserListHandler(message):
+	user = GetUser(message.from_user.id)
+	if user != False:
+		#The user is registred in DB
+		userStatus = GetUserStatusValue(message.from_user.id)
+		if UserStatus.IsActive(userStatus):
+			#Add to list
+			msg = "Ecco un elenco delle liste attualmente disponibili:\n(Per sottoscriverti ad una lista, è sufficiente \"tapparla\")"
+			#Get available lists
+			lists = AvailableListsToUser(message.from_user.id)
+			markup = telebot.types.InlineKeyboardMarkup()
+			#Print the lists as inline buttons
+			if len(lists) == 0:
+				msg = "Al momento non è presente nessuna lista.\nSi prega di riprovare in seguito."
+			for ulist in lists:
+				#																			sub-{id} => subscript to list {id}
+				markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="sub-"+str(ulist["ID"])))
+			#If there are still lists, print the page delimiter
+			#if len(lists) > Settings.subscriptionRows-1:
+			if AvailableListsToUser(message.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
+				#																																	  osub-{n} => offest subscription, needed for pagination, 
+				#Teels the offset to set to correctly display the pages
+				markup.row(telebot.types.InlineKeyboardButton(" ", callback_data="ignore"), telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"osub-"+str(Settings.subscriptionRows-1)))
+				#⬅️ ➡️ 
+			msg = bot.reply_to(message, msg, reply_markup=markup)
+			#SubscribeUserToList()
+
+		elif UserStatus.IsBanned(userStatus):
+			#banned, not much you can do right now
+			bot.reply_to(message, "Error 403 - ❌ Unauthorized")
+		else:
+			#User in another activity (like creating list)
+			bot.reply_to(message, "Sembra che tu sia occupato in un'altra azione (come impostare una biografia).\n Sarebbe opportuno terminare quell'azione prima di cercare di intraprenderne altre")
+	else:
+		bot.reply_to(message, "Sarebbe opportuno registrarsi prima, tu non credi?\nPuoi farlo attraverso il comando /iscrivi")
+
+@bot.message_handler(commands=['subscribedto', 'joinedto', 'inscriptions', 'iscrizioni', 'disiscriviti', 'rimuovi'])
+def unsubscribeUserListHandler(message):
+	user = GetUser(message.from_user.id)
+	if user != False:
+		#The user is registred in DB
+		userStatus = GetUserStatusValue(message.from_user.id)
+		if UserStatus.IsActive(userStatus):
+			#Add to list
+			msg = "Ecco un elenco delle liste alle quali sei attualmente iscritto:\n(Per rimuovere la sottoscrizione, è sufficiente \"tapparla\" e confermare)"
+			#Get available lists
+			lists = SubscribedLists(message.from_user.id)
+			markup = telebot.types.InlineKeyboardMarkup()
+			#Print the lists as inline buttons
+			if lists == False:
+				msg="Al momento non sei iscritto a nessuna lista.\nPuoi iscriverti ad una lista attraverso il comando /registrati."
+			else:
+				for ulist in lists:
+					#																			sub-{id} => unsubscribe to list {id}
+					markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+				#If there are still lists, print the page delimiter
+				#if len(lists) > Settings.subscriptionRows-1:
+				if SubscribedLists(message.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
+					#																																	  osub-{n} => offest subscription, needed for pagination, 
+					#Teels the offset to set to correctly display the pages
+					markup.row(telebot.types.InlineKeyboardButton(" ", callback_data="ignore"), telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(Settings.subscriptionRows-1)))
+					#⬅️ ➡️ 
+			msg = bot.reply_to(message, msg, reply_markup=markup)
+			#SubscribeUserToList()
+
+		elif UserStatus.IsBanned(userStatus):
+			#banned, not much you can do right now
+			bot.reply_to(message, "Error 403 - ❌ Unauthorized")
+		else:
+			#User in another activity (like creating list)
+			bot.reply_to(message, "Sembra che tu sia occupato in un'altra azione (come impostare una biografia).\n Sarebbe opportuno terminare quell'azione prima di cercare di intraprenderne altre")
+	else:
+		bot.reply_to(message, "Sarebbe opportuno registrarsi prima, tu non credi?\nPuoi farlo attraverso il comando /iscrivi")
 
 @bot.message_handler(func=lambda m: True)
 def genericMessageHandler(message):
 	#get info about the user
-
 	user = GetUser(message.from_user.id)
 	if user != False:
 		#The user is registred in DB
+		UpdateNickname(message.from_user.id, message.from_user.username.lower())
 
 		#Check for biography
 		if user["Status"] == UserStatus.WAITING_FOR_BIOGRAPHY:
@@ -423,25 +625,28 @@ def genericMessageHandler(message):
 			if message.chat.type == "private":
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
-				msg = bot.reply_to(message, "Biografia impostata con successo!")
+				msg = bot.reply_to(message, "✅ Biografia impostata con successo!")
 				#Tries to force the user to reply to the message
-				
 			#TODO: Not sure about the order - needs to be checked
 			elif message.chat.type == "group" or message.chat.type == "supergroup" and message.reply_to_message != None and message.reply_to_message.from_user.id == botInfo.id:
 				dbC = dbConnection.cursor()
 				res = dbC.execute('UPDATE Users SET Status=?, Biography=? WHERE ID = ?', (UserStatus.ACTIVE, message.text, message.from_user.id,) )
-				msg = bot.reply_to(message, "Biografia impostata con successo!")
+				msg = bot.reply_to(message, "✅ Biografia impostata con successo!")
 		#Check for list
 		elif user["Status"] == UserStatus.WAITING_FOR_LIST:
 			#User is creating a new list
 			#TODO check for ASCII ONLY (RegEx?), replace spaces with underscores, 
-			listName = message.text
+			listName = message.text.lower()
+			p = re.compile(r'[a-z0-9_\-]+', re.IGNORECASE)
+			if not p.match(listName):
+				bot.reply_to(message, "Qualcosa è andato storto :c\n Il nome sembra contenre caratteri non permessi. Sono permesse solo lettere, numeri, underscores(_) e trattini")
+				return
 			if message.chat.type == "private":
 				success = CreateNewList(listName)
 				if success:
 					msg = bot.reply_to(message, "Lista creata con successo!")
 				else:
-					msg = bot.reply_to(message, "Qualcosa è andato storto :c !")
+					msg = bot.reply_to(message, "Qualcosa è andato storto :c\n Sei sicuro che non esista già una lista con lo stesso nome?")
 				#Tries to force the user to reply to the message
 				
 			#TODO: Not sure about the order - needs to be checked
@@ -450,25 +655,42 @@ def genericMessageHandler(message):
 				if success:
 					msg = bot.reply_to(message, "Lista creata con successo!")
 				else:
-					msg = bot.reply_to(message, "Qualcosa è andato storto :c !")
+					msg = bot.reply_to(message, "Qualcosa è andato storto :c\n Sei sicuro che non esista già una lista con lo stesso nome?")
 		
 		else:
 			#Normal message, increment message counter
 			#update lastseen
 			UpdateLastSeen(message.from_user.id, time.strftime('%Y-%m-%d %H:%M:%S',
-			#Telegram sends the date in a epoch format 
-			#https://core.telegram.org/bots/api#message
-			# Need to convert it
-			#https://stackoverflow.com/a/12400584
-			time.localtime(message.date)))
+				#Telegram sends the date in a epoch format 
+				#https://core.telegram.org/bots/api#message
+				# Need to convert it
+				#https://stackoverflow.com/a/12400584
+				time.localtime(message.date)))
 
-			if not message.from_user.is_bot and message.text != "" :
+			if message.chat.type == "group" or message.chat.type == "supergroup" and not message.from_user.is_bot and message.text != "":
+				if message.text[0] == "#" or message.text[0] == "@" or message.text[0] == "." or message.text[0] == "!":
+					listName = message.text.strip()[1:].lower()
+					if ListExists(listName):
+						users = GetListSubscribers(GetListID(listName))
+						if users != False:
+							variations = ["alla riscossa!", "all'attacco!", "che la conoscenza sia con voi!", "il mondo confida in voi!", 
+							"che la vostra conoscenza possa illuminare la via!", "possa la vostra conoscenza aprire nuove vie!"]
+							msg = "Gente di " + listName + ", " + random.choice(variations) + "\n"
+							for user in users:
+								msg = msg + "@"+GetUserNickname(user[0]) + ", "
+							msg = msg[:len(msg)-2]
+						else:
+							msg = "La lista  " + listName + " non ha ancora nessun iscritto :c"
+						bot.reply_to(message, msg)
+
+				#Message counter
 				if message.chat.id == Settings.ITGroup:
 					#Increment IT group messages cunt
 					IncrITGroupMessagesCount(message.from_user.id)
 				elif message.chat.id == Settings.OTGroup:
 					#Increment OT group messages cunt
-					IncrOTGroupMessagesCount(message.from_user.id)
+						IncrOTGroupMessagesCount(message.from_user.id)
+		
 		dbConnection.commit()
 
 
@@ -480,6 +702,7 @@ def callback_query(call):
 	# {'game_short_name': None, 'chat_instance': '5537587246343980605', 'id': '60524995438318427', 'from_user': {'id': 14092073, 'is_bot': False, 'first_name': 'Pandry', 'username': 'Pandry', 'last_name': None, 'language_code': 'en-US'}, 'message': {'content_type': 'text', 'message_id': 2910, 'from_user': <telebot.types.User object at 0x040BBB30>, 'date': 1541000520, 'chat': <telebot.types.Chat object at 0x040BBB10>, 'forward_from_chat': None, 'forward_from': None, 'forward_date': None, 'reply_to_message': <telebot.types.Message object at 0x040BBFB0>, 'edit_date': None, 'media_group_id': None, 'author_signature': None, 'text': 'Per impostare una biografia, scrivila in chat privata o rispondendomi', 'entities': None, 'caption_entities': None, 'audio': None, 'document': None, 'photo': None, 'sticker': None, 'video': None, 'video_note': None, 'voice': None, 'caption': None, 'contact': None, 'location': None, 'venue': None, 'new_chat_member': None, 'new_chat_members': None, 'left_chat_member': None, 'new_chat_title': None, 'new_chat_photo': None, 'delete_chat_photo': None, 'group_chat_created': None, 'supergroup_chat_created': None, 'channel_chat_created': None, 'migrate_to_chat_id': None, 'migrate_from_chat_id': None, 'pinned_message': None, 'invoice': None, 'successful_payment': None, 'connected_website': None, 'json': {'message_id': 2910, 'from': {'id': 676490981, 'is_bot': True, 'first_name': 'ScienzaBot', 'username': 'scienzati_bot'}, 'chat': {'id': -1001176680738, 'title': '@Scienza World Domination', 'type': 'supergroup'}, 'date': 1541000520, 'reply_to_message': {'message_id': 2909, 'from': {'id': 14092073,
 	# 'is_bot': False, 'first_name': 'Pandry', 'username': 'Pandry', 'language_code': 'en-US'}, 'chat': {'id': -1001176680738, 'title': '@Scienza World Domination', 'type': 'supergroup'}, 'date': 1541000520, 'text': '/bio', 'entities': [{'offset': 0, 'length': 4, 'type': 'bot_command'}]}, 'text': 'Per impostare una biografia, scrivila in chat privata o rispondendomi'}}, 'data': 'annulla', 'inline_message_id': None}
 	#
+	#The call data can be edited, checks are needed
 	user = GetUser(call.from_user.id)
 	if user != False:
 		#Check if is to abort bio
@@ -495,7 +718,7 @@ def callback_query(call):
 				else:
 					bot.delete_message(call.message.chat.id , call.message.message_id)
 		#Check if is to abort list creation
-		if call.data == "aList":
+		elif call.data == "aList":
 			#Check if the guy who pressed is the same who asked to set the bio
 			if call.from_user.id == call.message.reply_to_message.from_user.id:
 				#Check that the user needs to set the bio
@@ -507,105 +730,182 @@ def callback_query(call):
 						bot.edit_message_text("Annullato." , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
 				else:
 					bot.delete_message(call.message.chat.id , call.message.message_id)
-				
-						
+		elif "ousub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					#Show next n rows + offset, osub-{offset}
+					#Safe data checks
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							actualOffset=int(splittedString[1])
+							if actualOffset%(Settings.subscriptionRows-1) == 0:
+								lists = SubscribedLists(call.from_user.id, offset=int(actualOffset))
+								markup = telebot.types.InlineKeyboardMarkup()
+								if len(lists) == 0:
+									bot.edit_message_text("Non sei iscritto a nessuna lista" , call.message.chat.id , call.message.message_id, call.id)
+									return
+								#Print the lists as inline buttons
+								for ulist in lists:
+									#																			sub-{id} => subscript to list {id}
+									markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+								#If there are still lists, print the page delimiter
+								if len(lists) > Settings.subscriptionRows-1:
+									previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"ousub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
+									nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
+									emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+									leftButton, rightButton = emptyArrow,emptyArrow
+									#Check if there are more list
+									if SubscribedLists(call.from_user.id, limit=1, offset=int(actualOffset+Settings.subscriptionRows)) != False:
+										rightButton = nextArrow
+									if actualOffset - Settings.subscriptionRows +2 > 0:
+										leftButton = previousArrow
+									markup.row(leftButton, rightButton)
+								#msg = bot.reply_to(message, msg, reply_markup=markup)
+								bot.edit_message_text("Ecco un elenco delle liste attualmente alle quali sei iscritto al momento:\n(Per rimuovere la sottoscrizione, è sufficiente \"tapparla\" e confermare)" , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+								return
+					#Just go away
+					bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
+
+		elif "cusub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							listID=int(splittedString[1])
+							#Remove subscription
+							success = UnubscribeUserFromList(call.from_user.id, listID)
+							if success:
+								bot.answer_callback_query(call.id, text="✅ Disiscritto", show_alert=False)
+							else:
+								bot.answer_callback_query(call.id, text="❌ Si è verificato un errore", show_alert=False)
+							#Edit message back to list
+							lists = SubscribedLists(call.from_user.id)
+							markup = telebot.types.InlineKeyboardMarkup()
+							#Print the lists as inline buttons
+							if len(lists) == 0:
+								bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id)
+							for ulist in lists:
+								#																			sub-{id} => subscript to list {id}
+								markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="usub-"+str(ulist["ID"])))
+							#If there are still lists, print the page delimiter
+							if len(lists) > Settings.subscriptionRows-1:
+								previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"ousub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
+								nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"ousub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
+								emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+								leftButton, rightButton = emptyArrow,emptyArrow
+								#Check if there are more list
+								if SubscribedLists(call.from_user.id, limit=1, offset=int(Settings.subscriptionRows)) != False:
+									rightButton = nextArrow
+								markup.row(leftButton, rightButton)
+							#msg = bot.reply_to(message, msg, reply_markup=markup)
+							bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+							return
+			bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
 
 
+		elif "usub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					#Show next n rows + offset, osub-{offset}
+					#Safe data checks
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							listID=int(splittedString[1])
+							msg="Sei sicuro di volerti disiscrivere dalla lista \"" + GetListName(listID) + "\"?"
+							markup = telebot.types.InlineKeyboardMarkup()
+							markup.row(
+								telebot.types.InlineKeyboardButton(f"⬅️ No", callback_data=f"ousub-0"),
+								telebot.types.InlineKeyboardButton(f"⚠️ Disiscriviti", callback_data=f"cusub-"+str(listID))
+							)
+							bot.edit_message_text(msg , call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+							return
+			bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
+		elif "osub-" in call.data:
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					#Show next n rows + offset, osub-{offset}
+					#Safe data checks
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							actualOffset=int(splittedString[1])
+							if actualOffset%(Settings.subscriptionRows-1) == 0:
+								lists = AvailableListsToUser(call.from_user.id, offset=int(actualOffset))
+								markup = telebot.types.InlineKeyboardMarkup()
+								#Print the lists as inline buttons
+								if len(lists) == 0:
+									bot.edit_message_text("Al momento non è presente nessuna lista" , call.message.chat.id , call.message.message_id, call.id)
+									return
+								for ulist in lists:
+									#																			sub-{id} => subscript to list {id}
+									markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="sub-"+str(ulist["ID"])))
+								#If there are still lists, print the page delimiter
+								if len(lists) > Settings.subscriptionRows-1:
+									previousArrow = telebot.types.InlineKeyboardButton(f"⬅️", callback_data=f"osub-"+str(int(actualOffset) - Settings.subscriptionRows+1))
+									nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"osub-"+str(int(actualOffset) + Settings.subscriptionRows-1))
+									emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+									leftButton, rightButton = emptyArrow,emptyArrow
+									#Check if there are more list
+									if AvailableListsToUser(call.from_user.id, limit=1, offset=int(actualOffset+Settings.subscriptionRows)) != False:
+										rightButton = nextArrow
+									if actualOffset - Settings.subscriptionRows +2 > 0:
+										leftButton = previousArrow
+									markup.row(leftButton, rightButton)
+								#msg = bot.reply_to(message, msg, reply_markup=markup)
+								bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+								return
+					#Just go away
+					bot.answer_callback_query(call.id, text="Just go away", show_alert=False, cache_time=999999)
 
-"""
-def first_registration(message):
-	global database
-	global liste
-	if not message.from_user.is_bot:
-		# if message.from_user.id is the same as before save this in database as description
-		database[str(message.from_user.id)]['description'] = message.text
+		elif "sub-" in call.data:
+			#Subscribe to list sub-{id}
+			if call.from_user.id == call.message.reply_to_message.from_user.id:
+				if user["Status"] == UserStatus.ACTIVE :
+					#Show next n rows + offset, osub-{offset}
+					#Safe data checks
+					splittedString = call.data.split('-')
+					if len(splittedString) == 2:
+						if splittedString[1].isdigit():
+							listID=int(splittedString[1])
+							success = SubscribeUserToList(call.from_user.id, listID)
+							if success:
+								bot.answer_callback_query(call.id, text="✅ Sottoscritto", show_alert=False)
+							else:
+								bot.answer_callback_query(call.id, text="❌ Si è verificato un errore", show_alert=False)
+							#update message
+							lists = AvailableListsToUser(call.from_user.id)
+							markup = telebot.types.InlineKeyboardMarkup()
+							#Print the lists as inline buttons
+							for ulist in lists:
+								#																			sub-{id} => subscript to list {id}
+								markup.row(telebot.types.InlineKeyboardButton(ulist["Name"], callback_data="sub-"+str(ulist["ID"])))
+							#If there are still lists, print the page delimiter
+							nextArrow = telebot.types.InlineKeyboardButton(f"➡️", callback_data=f"osub-"+str(Settings.subscriptionRows-1))
+							emptyArrow = telebot.types.InlineKeyboardButton(" ", callback_data="ignore")
+							leftButton, rightButton = emptyArrow,emptyArrow
+							#Check if there are more list
+							if AvailableListsToUser(call.from_user.id, limit=1, offset=Settings.subscriptionRows-1) != False:
+								rightButton = nextArrow
+							markup.row(leftButton, rightButton)
+							#msg = bot.reply_to(message, msg, reply_markup=markup)
+							bot.edit_message_reply_markup(call.message.chat.id , call.message.message_id, call.id, reply_markup=markup)
+							return
 
-		# sql_command = ("UPDATE users SET description =  "
-		# + message.text 
-		# + "WHEN id_number =" + str(message.from_user.id))
-		# database.execute(sql_command)
-
-		bot.reply_to(message,"A quali liste vuoi iscriverti?")
-		msg = bot.reply_to(message,"seleziona fra: " + str(liste))
-		# scrivere lista di liste
-		bot.register_next_step_handler(msg, second_registration)
-def second_registration(message):
-	global database
-	global liste
-	if not message.from_user.is_bot:
-		# if message.from_user.id is the same as before:
-		# Save this in database as subscriptions
-		msg = message.text.replace(',','')
-		subscription = msg.split()
-		database[str(message.from_user.id)]['liste'] = []
-		for lista in subscription:
-			if lista in liste:
-				database[str(message.from_user.id)]['liste'].append(lista)
-			else: 
-				bot.reply_to(message, "Lista "+ lista + " non esistente")
-		
-		bot.reply_to(message, "Grazie " + message.from_user.first_name + "\n\
-		ora sei iscritto a:\n " + str(database[str(message.from_user.id)]['liste']))
-		with open('database.json', 'a') as f:  
-			json.dump(database, f, indent=4)
-"""
-### Fine Chat di iscrizione ###
-
-
-###
-# Bot hooks
-###
-"""
-@bot.message_handler(commands=['liste'])
-def print_liste(message):
-	global liste
-	bot.reply_to(message, str(liste))
-""" 
-
-"""
-@bot.message_handler(commands=['nuovalista'])
-def change_liste(message):
-	global liste
-
-	# set default for user not in database as privs = -1
-	userprivs = database.get(str(message.from_user.id),{'privs' : -1})['privs']
-	if userprivs > 2:
-		nuovalista = message.text.split("nuovalista ",1)[-1]
-		if "/nuovalista" in nuovalista:
-			bot.reply_to(message, "specifica una lista dopo il comando /nuovalista.\nAd esempio /nuovalista fisica")
-		elif nuovalista in liste:
-			bot.reply_to(message, "lista gia' esistente")
-		else:
-			liste.append(nuovalista)
-			bot.reply_to(message, "lista aggiunta\n"+str(liste))
-
-	with open('liste.json', 'w') as f:  
-		json.dump(liste, f, indent=4)
-
-
-	# bot.reply_to(message, )
-"""
-
-
-"""
-@bot.message_handler(commands=['database'])
-def print_database(message):
-	global database
-	userprivs = database.get(str(message.from_user.id),{'privs' : -1})['privs']
-
-	if userprivs > 2:
-		bot.reply_to(message, str(database))
-	else:
-		bot.reply_to(message, str(database.get(message.from_user.id,None)))
-"""
-"""
-@bot.message_handler(func=lambda m: True)
-def reply_all(message):
-	if not message.from_user.is_bot:
-		bot.reply_to(message, "Ciao " + message.from_user.first_name + 
-		                      ",\nusa /help o /start per una lista dei comandi")
-"""
-
+@bot.inline_handler(func=lambda chosen_inline_result: True)
+def getUserBioInlineQuery(inline_query):
+	user = inline_query.query.lower()
+	responses = []
+	usersIDs = getUsersIdLike(user)
+	for userid in usersIDs:
+		userNick = GetUserNickname(userid[0])
+		responses.append(
+			telebot.types.InlineQueryResultArticle(len(responses)+1,  userNick[0].upper() + userNick[1:] + "'s Bio: " + GetUserBio(userid[0]), telebot.types.InputTextMessageContent(userNick[0].upper() + userNick[1:] + "'s Biography is \"" +GetUserBio(userid[0]) + "\""))
+		) 
+	bot.answer_inline_query(inline_query.id, responses)
+    # Query message is text
 ###
 #Starts the bot
 ###
