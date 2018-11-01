@@ -902,7 +902,7 @@ def getUserBioInlineQuery(inline_query):
 	for userid in usersIDs:
 		userNick = GetUserNickname(userid[0])
 		responses.append(
-			telebot.types.InlineQueryResultArticle(len(responses)+1,  userNick[0].upper() + userNick[1:] + "'s Bio: " + GetUserBio(userid[0]), telebot.types.InputTextMessageContent(GetUserBio(userid[0])))
+			telebot.types.InlineQueryResultArticle(len(responses)+1,  userNick[0].upper() + userNick[1:] + "'s Bio: " + GetUserBio(userid[0]), telebot.types.InputTextMessageContent(userNick[0].upper() + userNick[1:] + "'s Biography is \"" +GetUserBio(userid[0]) + "\""))
 		) 
 	bot.answer_inline_query(inline_query.id, responses)
     # Query message is text
